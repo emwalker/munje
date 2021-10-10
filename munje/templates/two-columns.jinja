@@ -1,0 +1,24 @@
+{% extends "layout.jinja" %}
+{% block body %}
+  <section>
+    <div class="columns">
+      <div class="column is-one-quarter">
+        <aside class="menu">
+          <ul class="menu-list">
+            <li><a>Organizations</a></li>
+            <li><a class="is-active" href="/questions">Questions</a></li>
+            <li><a>Question sets</a></li>
+            <li><a>Tracks</a></li>
+            <li><a>Topics</a></li>
+            <li><a>Queues</a></li>
+          </ul>
+        </aside>
+      </div>
+      <div class="column is-three-quarters">
+        <article class="mr-4">
+          {% block content %}{% endblock %}
+        </article>
+      </div>
+    </div>
+  </section>
+{% endblock %}

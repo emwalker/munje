@@ -1,0 +1,22 @@
+{% extends "layout.jinja" %}
+{% block title %}Add question{% endblock %}
+{% block body %}
+  <section>
+    <div class="container is-fluid">
+      <h2>Add a question</h2>
+      <form action="/questions" method="POST">
+        <div class="field">
+          <label class="label">Link</label>
+          <input class="input" type="text" placeholder="Link" name="link" value="{{ form.link }}">
+        </div>
+        <div class="field">
+          <label class="label">Question</label>
+          <textarea class="input" type="text" placeholder="Question prompt"
+            name="question-prompt"
+            disabled></textarea>
+        </div>
+        <input class="button is-primary" type="submit" value="Add">
+        <a href="/questions" class="button ml-2">Cancel</a>
+      </form>
+  </section>
+{% endblock %}

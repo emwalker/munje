@@ -5,10 +5,10 @@ mod models;
 mod routes;
 mod types;
 
-use actix_web::{middleware, App, HttpServer};
+use actix_web::{middleware, web, App, HttpServer};
 use anyhow::Result;
 use dotenv::dotenv;
-use sqlx::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 use types::{AppState, Pool};
 
 #[actix_web::main]
@@ -18,11 +18,11 @@ async fn main() -> Result<()> {
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
     info!("using sqlite database at: {}", &database_url);
-    let pool = SqlitePool::new(&database_url).await?;
+    let pool = SqlitePoolOptions::new().connect(&database_url).await?;
 
     let server = HttpServer::new(move || {
         App::new()
-            .data(AppState { pool: pool.clone() })
+            .app_data(web::Data::new(AppState { pool: pool.clone() }))
             .wrap(middleware::Logger::default())
             .configure(routes::init)
     })

@@ -25,10 +25,17 @@ mod tests {
     use crate::models::{Question, QuestionData};
     use crate::types::{AppState, Pool};
     use actix_web::dev::{HttpServiceFactory, Service};
-    use actix_web::{http, test, App};
+    use actix_web::{http, test, web, App};
     use anyhow::Error;
     use scraper::{Html, Selector};
+    use sqlx::sqlite::SqlitePoolOptions;
     use std::str;
+
+    #[cfg(test)]
+    #[ctor::ctor]
+    fn init() {
+        env_logger::init();
+    }
 
     #[derive(Clone)]
     struct Document {
@@ -58,16 +65,13 @@ mod tests {
         }
 
         async fn fetch_pool() -> Result<Pool> {
-            let result = sqlx::SqlitePool::builder()
-                .max_size(10)
-                .build("sqlite:///tmp/munje/test.db".as_ref())
+            let result = SqlitePoolOptions::new()
+                .max_connections(1)
+                .connect("sqlite::memory:")
                 .await;
             match result {
                 Ok(pool) => {
-                    let mut tx = pool.acquire().await?;
-                    sqlx::query!("delete from questions")
-                        .execute(&mut tx)
-                        .await?;
+                    sqlx::migrate!("./migrations").run(&pool).await?;
                     Ok(pool)
                 }
                 Err(_) => panic!("Unable to fetch database pool"),
@@ -79,19 +83,19 @@ mod tests {
             F: HttpServiceFactory + 'static,
         {
             let app = App::new()
-                .data(AppState {
+                .app_data(web::Data::new(AppState {
                     pool: self.pool.clone(),
-                })
+                }))
                 .service(service);
-            let mut app = test::init_service(app).await;
+            let app = test::init_service(app).await;
 
             let req = test::TestRequest::get().uri(path).to_request();
             let resp = app.call(req).await.unwrap();
 
             assert_eq!(resp.status(), http::StatusCode::OK);
 
-            let body = match resp.response().body().as_ref() {
-                Some(actix_web::body::Body::Bytes(bytes)) => bytes,
+            let body = match resp.response().body() {
+                actix_web::body::Body::Bytes(bytes) => bytes,
                 _ => panic!("Response error"),
             };
 

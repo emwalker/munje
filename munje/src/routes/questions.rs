@@ -1,7 +1,7 @@
 use crate::models::{Question, QuestionData};
 use crate::{AppState, Pool};
 
-use actix_web::{get, post, web, Error, HttpRequest, HttpResponse};
+use actix_web::{get, post, web, Error, HttpResponse};
 use anyhow::Result;
 use askama::Template;
 
@@ -76,11 +76,9 @@ async fn show_or_new(
 
 #[post("/questions")]
 async fn create(
-    req: HttpRequest,
     state: web::Data<AppState>,
     form: web::Form<QuestionData>,
 ) -> Result<HttpResponse, Error> {
-    println!("REQ: {:?}", req);
     let data = form.into_inner();
     let result = Question::create(&data, &state.pool).await;
     match result {

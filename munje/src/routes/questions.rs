@@ -1,6 +1,6 @@
 use crate::models::{Question, QuestionData};
 use crate::page::Page;
-use crate::types::Message;
+use crate::types::{CurrentPage, Message};
 use crate::{AppState, Pool};
 
 use actix_web::{get, http, post, web, Error, HttpResponse};
@@ -14,11 +14,18 @@ pub fn configure(cfg: &mut web::ServiceConfig) {
     cfg.service(list).service(show_or_new).service(create);
 }
 
+fn page() -> CurrentPage {
+    CurrentPage {
+        path: "/questions".to_string(),
+    }
+}
+
 #[derive(Template)]
 #[template(path = "questions/list.jinja")]
 struct List<'a> {
     items: &'a Vec<Question>,
     messages: &'a Vec<Message>,
+    page: CurrentPage,
 }
 
 async fn fetch_all(pool: &Pool, messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
@@ -27,6 +34,7 @@ async fn fetch_all(pool: &Pool, messages: IncomingFlashMessages) -> Result<HttpR
         Ok(items) => List {
             items: &items,
             messages: &Message::to_messages(&messages),
+            page: page(),
         }
         .render()
         .unwrap(),
@@ -48,6 +56,7 @@ async fn list(
 struct New<'a> {
     form: &'a QuestionData,
     messages: &'a Vec<Message>,
+    page: CurrentPage,
 }
 
 #[derive(Template)]
@@ -55,12 +64,14 @@ struct New<'a> {
 struct Show<'a> {
     question: &'a Question,
     messages: &'a Vec<Message>,
+    page: CurrentPage,
 }
 
 #[derive(Template)]
 #[template(path = "questions/not-found.jinja")]
 struct NotFound<'a> {
     messages: &'a Vec<Message>,
+    page: CurrentPage,
 }
 
 #[get("/questions/{id}")]
@@ -77,8 +88,9 @@ async fn show_or_new(
                 link: "".to_string(),
             };
             New {
-                form: form,
+                form,
                 messages,
+                page: page(),
             }
             .render()
             .unwrap()
@@ -89,13 +101,24 @@ async fn show_or_new(
                 Ok(Some(question)) => Show {
                     question: &question,
                     messages,
+                    page: page(),
                 }
                 .render()
                 .unwrap(),
-                Ok(None) => NotFound { messages }.render().unwrap(),
+                Ok(None) => NotFound {
+                    messages,
+                    page: page(),
+                }
+                .render()
+                .unwrap(),
                 Err(_) => {
                     FlashMessage::error("There was a problem").send();
-                    NotFound { messages }.render().unwrap()
+                    NotFound {
+                        messages,
+                        page: page(),
+                    }
+                    .render()
+                    .unwrap()
                 }
             }
         }
@@ -138,6 +161,7 @@ async fn create(
         let s = New {
             form: &data,
             messages: &messages,
+            page: page(),
         }
         .render()
         .unwrap();

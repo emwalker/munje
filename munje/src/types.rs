@@ -1,5 +1,4 @@
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages, Level};
-use scraper::{Html, Selector};
 use sqlx::SqlitePool;
 
 pub type Pool = SqlitePool;
@@ -37,20 +36,21 @@ impl Message {
     }
 }
 
-#[derive(Clone)]
-pub struct Document {
-    inner: Html,
+#[derive(Default)]
+pub struct CurrentPage {
+    pub path: String,
 }
 
-impl Document {
-    pub fn from(html: &str) -> Self {
-        Self {
-            inner: Html::parse_document(html),
-        }
+impl CurrentPage {
+    pub fn at(&self, path: &str) -> bool {
+        self.path == path
     }
 
-    pub fn select_text(&self, selector: &str) -> Option<String> {
-        let sel = Selector::parse(selector).unwrap();
-        Some(self.inner.select(&sel).next().unwrap().inner_html())
+    pub fn active(&self, path: &str) -> &'static str {
+        if self.at(path) {
+            "is-active"
+        } else {
+            ""
+        }
     }
 }

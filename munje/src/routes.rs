@@ -1,6 +1,6 @@
 mod questions;
 
-use crate::types::Message;
+use crate::types::{CurrentPage, Message};
 use actix_web::{get, web, Error, HttpResponse};
 use actix_web_flash_messages::IncomingFlashMessages;
 use anyhow::Result;
@@ -15,12 +15,16 @@ pub fn init(cfg: &mut web::ServiceConfig) {
 #[template(path = "home.jinja")]
 struct Home<'a> {
     messages: &'a Vec<Message>,
+    page: CurrentPage,
 }
 
 #[get("/")]
 async fn home(messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
     let s = Home {
         messages: &Message::to_messages(&messages),
+        page: CurrentPage {
+            path: "/".to_string(),
+        },
     }
     .render()
     .unwrap();
@@ -31,14 +35,33 @@ async fn home(messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
 mod tests {
     use super::*;
     use crate::models::{Question, QuestionData};
-    use crate::types::{AppState, Document, Pool};
+    use crate::types::{AppState, Pool};
     use actix_web::cookie::Key;
     use actix_web::dev::{HttpServiceFactory, Service};
     use actix_web::{http, test, web, App};
     use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
     use anyhow::Error;
+    use scraper::{Html, Selector};
     use sqlx::sqlite::SqlitePoolOptions;
     use std::str;
+
+    #[derive(Clone)]
+    pub struct Document {
+        inner: Html,
+    }
+
+    impl Document {
+        pub fn from(html: &str) -> Self {
+            Self {
+                inner: Html::parse_document(html),
+            }
+        }
+
+        pub fn select_text(&self, selector: &str) -> Option<String> {
+            let sel = Selector::parse(selector).unwrap();
+            Some(self.inner.select(&sel).next().unwrap().inner_html())
+        }
+    }
 
     struct Harness {
         pool: Pool,

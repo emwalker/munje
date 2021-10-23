@@ -8,6 +8,9 @@ pub struct Page {
 }
 
 impl Page {
+    const LEETCODE_LOGO: &'static str =
+        "https://assets.leetcode.com/static_assets/public/icons/favicon-96x96.png";
+
     pub fn parse(body: String, link: String) -> Result<Self, Error> {
         let html = Html::parse_fragment(body.as_ref());
         match Url::parse(&link) {
@@ -20,14 +23,19 @@ impl Page {
     }
 
     pub fn meta_image(&self) -> Option<Url> {
-        let sel = Selector::parse(r#"meta[property="og:image"]"#).unwrap();
-        let result = self.html.select(&sel).next();
-        match result {
-            None => None,
-            Some(element) => match element.value().attr("content") {
-                None => None,
-                Some(content) => self.extract_meta_image(content),
-            },
+        match self.link.host_str() {
+            Some("leetcode.com") => Some(Url::parse(Self::LEETCODE_LOGO).unwrap()),
+            _ => {
+                let sel = Selector::parse(r#"meta[property="og:image"]"#).unwrap();
+                let result = self.html.select(&sel).next();
+                match result {
+                    None => None,
+                    Some(element) => match element.value().attr("content") {
+                        None => None,
+                        Some(content) => self.extract_meta_image(content),
+                    },
+                }
+            }
         }
     }
 
@@ -57,6 +65,7 @@ impl Page {
         }
     }
 
+    #[allow(dead_code)]
     fn title(&self) -> Option<String> {
         let sel = Selector::parse("title").unwrap();
         let result = self.html.select(&sel).next();
@@ -97,7 +106,7 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn relative_meta_image() -> Result<(), Error> {
+    async fn leetcode_meta_image() -> Result<(), Error> {
         let page = Page::parse(
             r#"
             <head>
@@ -108,7 +117,7 @@ mod tests {
             "https://leetcode.com/problems/some-problem".to_string(),
         )?;
         assert_eq!(
-            "https://leetcode.com/static/images/LeetCode_Sharing.png".to_string(),
+            "https://assets.leetcode.com/static_assets/public/icons/favicon-96x96.png".to_string(),
             page.meta_image().unwrap().to_string(),
         );
         Ok(())

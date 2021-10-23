@@ -6,8 +6,8 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
   <style>
     .link-logo {
-      max-width: 64px;
-      max-height: 64px;
+      max-width: 40px;
+      max-height: 40px;
     }
   </style>
   <script>
@@ -36,20 +36,22 @@
       </a>
     </div>
 
-    <div id="navbarBasicExample" class="navbar-menu">
-      <div class="navbar-start">
-        <div class="navbar-item has-dropdown is-hoverable">
-          <a class="navbar-link">
-            More
-          </a>
-
-          <div class="navbar-dropdown">
-            <a class="navbar-item" href="/questions">
-              Questions
+    <div class="navbar-menu">
+      {% if page.at("/") %}
+        <div class="navbar-start">
+          <div class="navbar-item has-dropdown is-hoverable">
+            <a class="navbar-link">
+              More
             </a>
+
+            <div class="navbar-dropdown">
+              <a class="navbar-item" href="/questions">
+                Questions
+              </a>
+            </div>
           </div>
         </div>
-      </div>
+      {% endif %}
 
       <div class="navbar-end">
         <div class="navbar-item">

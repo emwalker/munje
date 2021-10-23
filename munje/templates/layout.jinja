@@ -4,7 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bulma/0.9.3/css/bulma.min.css">
-  <style></style>
+  <style>
+  </style>
+  <script>
+    function dismissAlert() {
+      var parent = window.event.target.closest(".notification");
+      if (parent) {
+        parent.style.display = "none";
+      } else {
+        console.log("No parent class found");
+      }
+    }
+  </script>
   <title>{% block title %}Munje{% endblock %}</title>
 </head>
 <body>
@@ -50,6 +61,16 @@
       </div>
     </div>
   </nav>
+  <section>
+    <div class="container">
+      {% for message in messages %}
+        <div class="notification is-{{message.level}} is-light mb-3">
+          <button class="delete" onClick="dismissAlert()"></button>
+          {{message.content}}
+        </div>
+      {% endfor %}
+    </div>
+  </section>
   {% block body %}{% endblock %}
 </body>
 </html>

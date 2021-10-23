@@ -1,6 +1,8 @@
 mod questions;
 
+use crate::types::Message;
 use actix_web::{get, web, Error, HttpResponse};
+use actix_web_flash_messages::IncomingFlashMessages;
 use anyhow::Result;
 use askama::Template;
 
@@ -11,11 +13,17 @@ pub fn init(cfg: &mut web::ServiceConfig) {
 
 #[derive(Template)]
 #[template(path = "home.jinja")]
-struct Home;
+struct Home<'a> {
+    messages: &'a Vec<Message>,
+}
 
 #[get("/")]
-async fn home() -> Result<HttpResponse, Error> {
-    let s = Home.render().unwrap();
+async fn home(messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
+    let s = Home {
+        messages: &Message::to_messages(&messages),
+    }
+    .render()
+    .unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
@@ -24,8 +32,10 @@ mod tests {
     use super::*;
     use crate::models::{Question, QuestionData};
     use crate::types::{AppState, Pool};
+    use actix_web::cookie::Key;
     use actix_web::dev::{HttpServiceFactory, Service};
     use actix_web::{http, test, web, App};
+    use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
     use anyhow::Error;
     use scraper::{Html, Selector};
     use sqlx::sqlite::SqlitePoolOptions;
@@ -82,10 +92,15 @@ mod tests {
         where
             F: HttpServiceFactory + 'static,
         {
+            let signing_key = Key::generate(); // This will usually come from configuration!
+            let message_store = CookieMessageStore::builder(signing_key).build();
+            let message_framework = FlashMessagesFramework::builder(message_store).build();
+
             let app = App::new()
                 .app_data(web::Data::new(AppState {
                     pool: self.pool.clone(),
                 }))
+                .wrap(message_framework.clone())
                 .service(service);
             let app = test::init_service(app).await;
 

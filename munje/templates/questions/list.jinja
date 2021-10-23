@@ -6,14 +6,26 @@
   {% if items.len() > 0 %}
     {% for question in items %}
       <div class="card">
-        <a href="/questions/{{question.id}}">
-          <div class="card-content">
-            {% match question.link %}
-              {% when Some with (link) %}
-              Link: {{ link }}
-              {% else %}
-              Link: (none)
-            {% endmatch %}
+        <a href="/questions/{{ question.id }}">
+          <div class="columns">
+            <div class="column card-image">
+              {% match question.link_logo %}
+                {% when Some with (link_logo) %}
+                  <figure class="image is-4by4 link-logo">
+                    <img src="{{ link_logo }}" alt="Placeholder image">
+                  </figure>
+                {% else %}
+                No logo
+              {% endmatch %}
+            </div>
+            <div class="column is-four-fifths card-content">
+              {% match question.link %}
+                {% when Some with (link) %}
+                  {{ link }}
+                {% else %}
+                  Question text here
+              {% endmatch %}
+            </div>
           </div>
         </a>
       </div>

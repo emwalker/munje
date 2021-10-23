@@ -31,13 +31,12 @@ async fn home(messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
 mod tests {
     use super::*;
     use crate::models::{Question, QuestionData};
-    use crate::types::{AppState, Pool};
+    use crate::types::{AppState, Document, Pool};
     use actix_web::cookie::Key;
     use actix_web::dev::{HttpServiceFactory, Service};
     use actix_web::{http, test, web, App};
     use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
     use anyhow::Error;
-    use scraper::{Html, Selector};
     use sqlx::sqlite::SqlitePoolOptions;
     use std::str;
 
@@ -45,21 +44,6 @@ mod tests {
     #[ctor::ctor]
     fn init() {
         env_logger::init();
-    }
-
-    #[derive(Clone)]
-    struct Document {
-        inner: Html,
-    }
-
-    impl Document {
-        fn select_text(&self, selector: &str) -> String {
-            let sel = Selector::parse(selector).unwrap();
-            match self.inner.select(&sel).next() {
-                Some(element) => element.inner_html(),
-                None => "".to_string(),
-            }
-        }
     }
 
     struct Harness {
@@ -115,16 +99,14 @@ mod tests {
             };
 
             let html = str::from_utf8(&body).unwrap();
-            Ok(Document {
-                inner: Html::parse_document(html),
-            })
+            Ok(Document::from(html))
         }
     }
 
     #[actix_rt::test]
     async fn test_home() -> Result<(), Error> {
         let doc = Harness::new().await.get(home, "/").await?;
-        assert_eq!("Munje", doc.select_text("p.title"));
+        assert_eq!("Munje", doc.select_text("p.title").unwrap());
         Ok(())
     }
 
@@ -134,7 +116,7 @@ mod tests {
             .await
             .get(questions::list, "/questions")
             .await?;
-        assert_eq!("Questions", doc.select_text("h2"));
+        assert_eq!("Questions", doc.select_text("h2").unwrap());
         Ok(())
     }
 
@@ -144,7 +126,7 @@ mod tests {
             .await
             .get(questions::show_or_new, "/questions/new")
             .await?;
-        assert_eq!("Add a question", doc.select_text("h2"));
+        assert_eq!("Add a question", doc.select_text("h2").unwrap());
         Ok(())
     }
 
@@ -154,7 +136,7 @@ mod tests {
             .await
             .get(questions::show_or_new, "/questions/unknown")
             .await?;
-        let title = doc.select_text("title");
+        let title = doc.select_text("title").unwrap();
         assert_eq!("Question not found", title);
         Ok(())
     }
@@ -165,11 +147,11 @@ mod tests {
         let data = QuestionData {
             link: "some-link".to_string(),
         };
-        let question = Question::create(&data, &harness.pool).await?;
+        let question = Question::create(&data, "logo-url".to_string(), &harness.pool).await?;
         let path = String::from("/questions/") + question.id.as_ref();
         let doc = harness.get(questions::show_or_new, &path).await?;
 
-        assert_eq!("Question", doc.select_text("h2"));
+        assert_eq!("Question", doc.select_text("h2").unwrap());
         Ok(())
     }
 }

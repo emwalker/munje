@@ -1,4 +1,5 @@
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages, Level};
+use scraper::{Html, Selector};
 use sqlx::SqlitePool;
 
 pub type Pool = SqlitePool;
@@ -33,5 +34,37 @@ impl Message {
             Level::Error => "danger",
         }
         .to_string()
+    }
+}
+
+#[derive(Clone)]
+pub struct Document {
+    inner: Html,
+}
+
+impl Document {
+    pub fn from(html: &str) -> Self {
+        Self {
+            inner: Html::parse_document(html),
+        }
+    }
+
+    pub fn select_text(&self, selector: &str) -> Option<String> {
+        let sel = Selector::parse(selector).unwrap();
+        Some(self.inner.select(&sel).next().unwrap().inner_html())
+    }
+
+    pub fn select_attr(&self, selector: &str, attr: &str) -> Option<String> {
+        let sel = Selector::parse(selector).unwrap();
+        Some(
+            self.inner
+                .select(&sel)
+                .next()
+                .unwrap()
+                .value()
+                .attr(attr)
+                .unwrap()
+                .to_string(),
+        )
     }
 }

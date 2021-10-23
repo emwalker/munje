@@ -1,11 +1,12 @@
 use crate::models::{Question, QuestionData};
-use crate::types::Message;
+use crate::types::{Document, Message};
 use crate::{AppState, Pool};
 
 use actix_web::{get, http, post, web, Error, HttpResponse};
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use anyhow::Result;
 use askama::Template;
+use reqwest;
 use url::Url;
 
 pub fn configure(cfg: &mut web::ServiceConfig) {
@@ -101,49 +102,61 @@ async fn show_or_new(
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
+async fn fetch_logo(link: &String) -> Result<String> {
+    let original_url = Url::parse(link).unwrap();
+    info!("Fetching text at link {}", original_url);
+    let text = reqwest::get(link).await?.text().await?;
+    let doc = Document::from(text.as_ref());
+    let result = doc.select_attr(r#"meta[property="og:image"]"#, "content");
+    let link_logo = match result {
+        Some(fetched_url) => {
+            let parsed_url = Url::parse(fetched_url.as_ref())?;
+            match parsed_url.host() {
+                Some(_) => fetched_url.to_string(),
+                None => original_url.host_str().unwrap().to_string() + &fetched_url,
+            }
+        }
+        None => "default-logo".to_string(),
+    };
+    info!("Using logo url: {}", link_logo);
+    Ok(link_logo)
+}
+
 #[post("/questions")]
 async fn create(
     state: web::Data<AppState>,
     form: web::Form<QuestionData>,
-    messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, Error> {
     let data = form.into_inner();
 
-    match Url::parse(data.link.as_ref()) {
-        Ok(_) => {}
-        Err(err) => {
-            let messages = vec![Message {
-                content: format!("Not a valid url: {:?}", err),
-                level: "warning".to_string(),
-            }];
-            let s = New {
-                form: &data,
-                messages: &messages,
-            }
-            .render()
-            .unwrap();
-            return Ok(HttpResponse::Ok().content_type("text/html").body(s));
+    let error_result = |message: String| -> Result<HttpResponse, Error> {
+        let messages = vec![Message {
+            content: message,
+            level: "warning".to_string(),
+        }];
+        let s = New {
+            form: &data,
+            messages: &messages,
         }
-    }
+        .render()
+        .unwrap();
+        Ok(HttpResponse::Ok().content_type("text/html").body(s))
+    };
 
-    let result = Question::create(&data, &state.pool).await;
-    match result {
-        Ok(_) => {
-            FlashMessage::info("Question created").send();
-            let redirect = HttpResponse::SeeOther()
-                .append_header((http::header::LOCATION, "/questions"))
-                .finish();
-            Ok(redirect)
-        }
-        err => {
-            error!("There was a problem: {:?}", err);
-            let s = New {
-                form: &data,
-                messages: &Message::to_messages(&messages),
+    match fetch_logo(&data.link).await {
+        Ok(link_logo) => {
+            let result = Question::create(&data, link_logo, &state.pool).await;
+            match result {
+                Err(err) => error_result(format!("There was a problem: {:?}", err)),
+                Ok(_) => {
+                    FlashMessage::info("Question created").send();
+                    let redirect = HttpResponse::SeeOther()
+                        .append_header((http::header::LOCATION, "/questions"))
+                        .finish();
+                    Ok(redirect)
+                }
             }
-            .render()
-            .unwrap();
-            Ok(HttpResponse::Ok().content_type("text/html").body(s))
         }
+        Err(err) => return error_result(format!("Unable to fetch logo: {:?}", err)),
     }
 }

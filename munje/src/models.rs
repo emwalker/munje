@@ -14,6 +14,7 @@ pub struct QuestionData {
 pub struct Question {
     pub id: String,
     pub link: Option<String>,
+    pub link_logo: Option<String>,
     pub created_at: String,
 }
 
@@ -21,7 +22,7 @@ impl Question {
     pub async fn find_all(pool: &Pool) -> Result<Vec<Question>> {
         let records = sqlx::query!(
             r#"
-            select id, link, created_at
+            select id, link, link_logo, created_at
             from questions
             order by created_at desc
             "#
@@ -32,6 +33,7 @@ impl Question {
         .map(|record| Question {
             id: record.id,
             link: record.link,
+            link_logo: record.link_logo,
             created_at: record.created_at,
         })
         .collect();
@@ -42,7 +44,7 @@ impl Question {
     pub async fn find_by_id(id: String, pool: &Pool) -> Result<Option<Question>> {
         let record = sqlx::query!(
             r#"
-            select id, link, created_at
+            select id, link, link_logo, created_at
             from questions
             where id = $1
             "#,
@@ -54,22 +56,24 @@ impl Question {
         Ok(record.map(|record| Question {
             id: record.id,
             created_at: record.created_at,
+            link_logo: record.link_logo,
             link: record.link,
         }))
     }
 
-    pub async fn create(item: &QuestionData, pool: &Pool) -> Result<Question> {
+    pub async fn create(item: &QuestionData, link_logo: String, pool: &Pool) -> Result<Question> {
         let mut tx = pool.acquire().await?;
 
         let uuid = Uuid::new_v4().to_hyphenated().to_string();
         let created_at = Utc::now().to_rfc3339();
         sqlx::query!(
             r#"
-            insert into questions (id, link, created_at)
-                values ($1, $2, $3)
+            insert into questions (id, link, link_logo, created_at)
+                values ($1, $2, $3, $4)
             "#,
             uuid,
             item.link,
+            link_logo,
             created_at
         )
         .execute(&mut tx)
@@ -78,6 +82,7 @@ impl Question {
         Ok(Question {
             id: uuid,
             link: Some(item.link.to_string()),
+            link_logo: Some(link_logo),
             created_at: created_at,
         })
     }

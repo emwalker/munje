@@ -53,18 +53,4 @@ impl Document {
         let sel = Selector::parse(selector).unwrap();
         Some(self.inner.select(&sel).next().unwrap().inner_html())
     }
-
-    pub fn select_attr(&self, selector: &str, attr: &str) -> Option<String> {
-        let sel = Selector::parse(selector).unwrap();
-        Some(
-            self.inner
-                .select(&sel)
-                .next()
-                .unwrap()
-                .value()
-                .attr(attr)
-                .unwrap()
-                .to_string(),
-        )
-    }
 }

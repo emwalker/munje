@@ -1,5 +1,6 @@
 use crate::models::{Question, QuestionData};
-use crate::types::{Document, Message};
+use crate::page::Page;
+use crate::types::Message;
 use crate::{AppState, Pool};
 
 use actix_web::{get, http, post, web, Error, HttpResponse};
@@ -102,24 +103,24 @@ async fn show_or_new(
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
-async fn fetch_logo(link: &String) -> Result<String> {
-    let original_url = Url::parse(link).unwrap();
+async fn fetch_logo(link: &String) -> Result<Option<String>> {
+    let original_url = Url::parse(link)?;
     info!("Fetching text at link {}", original_url);
-    let text = reqwest::get(link).await?.text().await?;
-    let doc = Document::from(text.as_ref());
-    let result = doc.select_attr(r#"meta[property="og:image"]"#, "content");
-    let link_logo = match result {
-        Some(fetched_url) => {
-            let parsed_url = Url::parse(fetched_url.as_ref())?;
-            match parsed_url.host() {
-                Some(_) => fetched_url.to_string(),
-                None => original_url.host_str().unwrap().to_string() + &fetched_url,
+    let html = reqwest::get(link).await?.text().await?;
+    match Page::parse(html, link.to_string()) {
+        Ok(page) => match page.meta_image() {
+            Some(url) => {
+                let url_str = url.to_string();
+                info!("Using logo url: {}", url_str);
+                Ok(Some(url_str))
             }
+            None => Ok(None),
+        },
+        Err(err) => {
+            error!("Problem parsing page: {:?}", err);
+            Ok(None)
         }
-        None => "default-logo".to_string(),
-    };
-    info!("Using logo url: {}", link_logo);
-    Ok(link_logo)
+    }
 }
 
 #[post("/questions")]
@@ -144,7 +145,11 @@ async fn create(
     };
 
     match fetch_logo(&data.link).await {
-        Ok(link_logo) => {
+        Ok(maybe_link_logo) => {
+            let link_logo = match maybe_link_logo {
+                Some(link_logo) => link_logo,
+                None => "default-logo".to_string(),
+            };
             let result = Question::create(&data, link_logo, &state.pool).await;
             match result {
                 Err(err) => error_result(format!("There was a problem: {:?}", err)),
@@ -157,6 +162,6 @@ async fn create(
                 }
             }
         }
-        Err(err) => return error_result(format!("Unable to fetch logo: {:?}", err)),
+        Err(err) => return error_result(format!("Problem fetching logo: {:?}", err)),
     }
 }

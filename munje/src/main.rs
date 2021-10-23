@@ -3,6 +3,7 @@ extern crate log;
 extern crate base64;
 
 mod models;
+mod page;
 mod routes;
 mod types;
 

@@ -40,12 +40,6 @@ mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
     use std::str;
 
-    #[cfg(test)]
-    #[ctor::ctor]
-    fn init() {
-        env_logger::init();
-    }
-
     struct Harness {
         pool: Pool,
     }

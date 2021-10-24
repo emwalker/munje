@@ -9,16 +9,17 @@
         <a href="/questions/{{ question.id }}">
           <div class="columns">
             <div class="column card-image m-3">
-              {% match question.link_logo %}
-                {% when Some with (link_logo) %}
-                  <figure class="image is-4by4 link-logo">
-                    <object data="{{ link_logo }}" type="image/png">
-                      {% include "default-icon.jinja" %}
-                    </object>
-                  </figure>
-                {% else %}
-                No logo
-              {% endmatch %}
+              <figure class="image is-4by4 link-logo">
+                {% match question.link_logo %}
+                  {% when Some with (link_logo) %}
+                      <object data="{{ link_logo }}" type="image/png">
+                        {% include "default-icon.jinja" %}
+                      </object>
+                    </figure>
+                  {% else %}
+                    {% include "default-icon.jinja" %}
+                {% endmatch %}
+              <figure>
             </div>
             <div class="column is-four-fifths card-content">
               {% match question.link %}

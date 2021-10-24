@@ -2,5 +2,32 @@
 {% block title %}View question{% endblock %}
 {% block content %}
   <h2 class="title">Question</h2>
-  Here is the question: {{ question.created_at }}
+
+  <div class="link-logo">
+  {% match question.link_logo %}
+    {% when Some with (link_logo) %}
+    <object data="{{ link_logo }}" type="image/png">
+      {% include "default-icon.jinja" %}
+    </object>
+    {% else %}
+    {% include "default-icon.jinja" %}
+  {% endmatch %}
+  </div>
+
+  {% match question.link %}
+    {% when Some with (link) %}
+      <p>
+        Complete the challenge at
+        <a target=”_blank” class="link" href="{{ link|safe }}">this link
+          <span class="icon">
+            <i class="fas fa-external-link-alt"></i>
+          </span>
+        </a>.
+        When you're done, come back to this question and indicate whether you solved the problem.
+      </p>
+    {% else %}
+      Question text: tbd
+  {% endmatch %}
+
+  <button class="button start-queue is-primary is-pulled-right">Start queue</button>
 {% endblock %}

@@ -61,7 +61,11 @@ impl Question {
         }))
     }
 
-    pub async fn create(item: &QuestionData, link_logo: String, pool: &Pool) -> Result<Question> {
+    pub async fn create(
+        item: &QuestionData,
+        link_logo: Option<String>,
+        pool: &Pool,
+    ) -> Result<Question> {
         let mut tx = pool.acquire().await?;
 
         let uuid = Uuid::new_v4().to_hyphenated().to_string();
@@ -82,7 +86,7 @@ impl Question {
         Ok(Question {
             id: uuid,
             link: Some(item.link.to_string()),
-            link_logo: Some(link_logo),
+            link_logo: link_logo,
             created_at: created_at,
         })
     }

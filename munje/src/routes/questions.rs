@@ -169,11 +169,7 @@ async fn create(
     };
 
     match fetch_logo(&data.link).await {
-        Ok(maybe_link_logo) => {
-            let link_logo = match maybe_link_logo {
-                Some(link_logo) => link_logo,
-                None => "default-logo".to_string(),
-            };
+        Ok(link_logo) => {
             let result = Question::create(&data, link_logo, &state.pool).await;
             match result {
                 Err(err) => error_result(format!("There was a problem: {:?}", err)),
@@ -229,11 +225,22 @@ mod tests {
         let data = QuestionData {
             link: "some-link".to_string(),
         };
-        let question = Question::create(&data, "logo-url".to_string(), &harness.pool).await?;
+        let question = Question::create(&data, Some("logo-url".to_string()), &harness.pool).await?;
         let path = format!("/questions/{}", question.id);
         let doc = harness.get(show_or_new, &path).await?;
 
-        assert_eq!("Question", doc.select_text("h2").unwrap());
+        assert_eq!("Question", doc.css("h2")?.first().unwrap().inner_html());
+        assert_eq!(
+            "some-link",
+            doc.css("a.link")?
+                .first()
+                .unwrap()
+                .value()
+                .attr("href")
+                .unwrap(),
+        );
+        assert!(doc.css("div.link-logo")?.exists());
+        assert!(doc.css("button.start-queue")?.exists());
         Ok(())
     }
 }

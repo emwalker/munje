@@ -7,7 +7,7 @@ use actix_web::{http, test, web, App};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
 use anyhow::Error;
 use anyhow::Result;
-use scraper::{Html, Selector};
+use scraper::{ElementRef, Html, Selector};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::str;
 
@@ -15,19 +15,44 @@ pub type TestResult = Result<(), Error>;
 
 #[derive(Clone)]
 pub struct Document {
-    inner: Html,
+    doc: Html,
+}
+
+pub struct Matches<'a> {
+    selector: Selector,
+    matches: Vec<ElementRef<'a>>,
+}
+
+impl<'a> Matches<'a> {
+    pub fn first(&mut self) -> Option<&ElementRef> {
+        self.matches.iter().next()
+    }
+
+    pub fn exists(&mut self) -> bool {
+        self.matches.iter().next() != None
+    }
 }
 
 impl Document {
     fn from(html: &str) -> Self {
         Self {
-            inner: Html::parse_document(html),
+            doc: Html::parse_document(html),
         }
     }
 
     pub fn select_text(&self, selector: &str) -> Option<String> {
-        let sel = Selector::parse(selector).unwrap();
-        Some(self.inner.select(&sel).next().unwrap().inner_html())
+        match self.css(selector).unwrap().first() {
+            Some(elem) => Some(elem.inner_html()),
+            None => None,
+        }
+    }
+
+    pub fn css(&self, selector_str: &str) -> Result<Matches> {
+        let selector = Selector::parse(selector_str).unwrap();
+        Ok(Matches {
+            selector: selector.clone(),
+            matches: self.doc.select(&selector).collect(),
+        })
     }
 }
 

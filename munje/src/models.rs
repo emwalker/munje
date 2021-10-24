@@ -16,13 +16,14 @@ pub struct Question {
     pub link: Option<String>,
     pub link_logo: Option<String>,
     pub created_at: String,
+    pub updated_at: String,
 }
 
 impl Question {
     pub async fn find_all(pool: &Pool) -> Result<Vec<Question>> {
         let records = sqlx::query!(
             r#"
-            select id, link, link_logo, created_at
+            select id, link, link_logo, created_at, updated_at
             from questions
             order by created_at desc
             "#
@@ -35,6 +36,7 @@ impl Question {
             link: record.link,
             link_logo: record.link_logo,
             created_at: record.created_at,
+            updated_at: record.updated_at
         })
         .collect();
 
@@ -44,7 +46,7 @@ impl Question {
     pub async fn find_by_id(id: String, pool: &Pool) -> Result<Option<Question>> {
         let record = sqlx::query!(
             r#"
-            select id, link, link_logo, created_at
+            select id, link, link_logo, created_at, updated_at
             from questions
             where id = $1
             "#,
@@ -55,9 +57,10 @@ impl Question {
 
         Ok(record.map(|record| Question {
             id: record.id,
-            created_at: record.created_at,
             link_logo: record.link_logo,
             link: record.link,
+            created_at: record.created_at,
+            updated_at: record.updated_at,
         }))
     }
 
@@ -72,12 +75,14 @@ impl Question {
         let created_at = Utc::now().to_rfc3339();
         sqlx::query!(
             r#"
-            insert into questions (id, link, link_logo, created_at)
-                values ($1, $2, $3, $4)
+            insert into questions (id, author_id, link, link_logo, created_at, updated_at)
+                values ($1, $2, $3, $4, $5, $6)
             "#,
             uuid,
+            "21546b43-dcde-43b2-a251-e736194de0a0",
             item.link,
             link_logo,
+            created_at,
             created_at
         )
         .execute(&mut tx)
@@ -87,7 +92,8 @@ impl Question {
             id: uuid,
             link: Some(item.link.to_string()),
             link_logo: link_logo,
-            created_at: created_at,
+            created_at: created_at.clone(),
+            updated_at: created_at,
         })
     }
 

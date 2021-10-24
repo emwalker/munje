@@ -29,5 +29,7 @@
       Question text: tbd
   {% endmatch %}
 
-  <button class="button start-queue is-primary is-pulled-right">Start queue</button>
+  <form method="POST" action="/questions/{{ question.id }}/queues">
+    <button class="button start-queue is-primary is-pulled-right">Start queue</button>
+  </form>
 {% endblock %}

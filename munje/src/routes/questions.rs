@@ -243,4 +243,9 @@ mod tests {
         assert!(doc.css("button.start-queue")?.exists());
         Ok(())
     }
+
+    #[actix_rt::test]
+    async fn start_queue() -> TestResult {
+        Ok(())
+    }
 }

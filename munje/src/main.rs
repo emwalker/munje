@@ -43,6 +43,7 @@ async fn main() -> Result<()> {
         App::new()
             .app_data(web::Data::new(AppState { pool: pool.clone() }))
             .wrap(middleware::Logger::default())
+            .wrap(middleware::NormalizePath::new(middleware::TrailingSlash::Trim))
             .wrap(message_framework(&session_key))
             .configure(routes::init)
     })

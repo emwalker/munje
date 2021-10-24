@@ -186,6 +186,18 @@ async fn create(
     }
 }
 
+#[post("/questions/{id}/queues")]
+async fn start_queue(
+    path: web::Path<(String,)>
+) -> Result<HttpResponse, Error> {
+    FlashMessage::info("New queue started").send();
+    let id = path.into_inner().0;
+    let redirect = HttpResponse::SeeOther()
+        .append_header((http::header::LOCATION, format!("/queues/{}", id)))
+        .finish();
+    Ok(redirect)
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::testing::{Runner, TestResult};
@@ -245,7 +257,14 @@ mod tests {
     }
 
     #[actix_rt::test]
-    async fn start_queue() -> TestResult {
+    async fn test_start_queue() -> TestResult {
+        let harness = Runner::new().await;
+        let data = QuestionData {
+            link: "some-link".to_string(),
+        };
+        let question = Question::create(&data, Some("logo-url".to_string()), &harness.pool).await?;
+        let path = format!("/questions/{}/queues", question.id);
+        harness.post(start_queue, &path).await?;
         Ok(())
     }
 }

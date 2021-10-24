@@ -1,7 +1,7 @@
 {% extends "two-columns.jinja" %}
 {% block title %}Questions{% endblock %}
 {% block content %}
-  <a href="/questions/new" class="button is-primary is-pulled-right">New</a>
+  <a href="/questions/new" class="button is-primary is-pulled-right">New question</a>
   <h2 class="title">Questions</h2>
   {% if items.len() > 0 %}
     {% for question in items %}
@@ -12,7 +12,9 @@
               {% match question.link_logo %}
                 {% when Some with (link_logo) %}
                   <figure class="image is-4by4 link-logo">
-                    <img src="{{ link_logo }}" alt="Placeholder image">
+                    <object data="{{ link_logo }}" type="image/png">
+                      {% include "default-icon.jinja" %}
+                    </object>
                   </figure>
                 {% else %}
                 No logo

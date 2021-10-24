@@ -10,6 +10,8 @@ pub struct Page {
 impl Page {
     const LEETCODE_LOGO: &'static str =
         "https://assets.leetcode.com/static_assets/public/icons/favicon-96x96.png";
+    const REDDIT_LOGO: &'static str =
+        "https://www.redditstatic.com/desktop2x/img/favicon/favicon-96x96.png";
 
     pub fn parse(body: String, link: String) -> Result<Self, Error> {
         let html = Html::parse_fragment(body.as_ref());
@@ -25,6 +27,8 @@ impl Page {
     pub fn meta_image(&self) -> Option<Url> {
         match self.link.host_str() {
             Some("leetcode.com") => Some(Url::parse(Self::LEETCODE_LOGO).unwrap()),
+            Some("www.reddit.com") => Some(Url::parse(Self::REDDIT_LOGO).unwrap()),
+            Some("reddit.com") => Some(Url::parse(Self::REDDIT_LOGO).unwrap()),
             _ => {
                 let sel = Selector::parse(r#"meta[property="og:image"]"#).unwrap();
                 let result = self.html.select(&sel).next();
@@ -118,6 +122,19 @@ mod tests {
         )?;
         assert_eq!(
             "https://assets.leetcode.com/static_assets/public/icons/favicon-96x96.png".to_string(),
+            page.meta_image().unwrap().to_string(),
+        );
+        Ok(())
+    }
+
+    #[actix_rt::test]
+    async fn reddit_meta_image() -> Result<(), Error> {
+        let page = Page::parse(
+            r#"<head></head>"#.to_string(),
+            "https://www.reddit.com/r/AskHistorians/comments/qdzeai".to_string(),
+        )?;
+        assert_eq!(
+            "https://www.redditstatic.com/desktop2x/img/favicon/favicon-96x96.png".to_string(),
             page.meta_image().unwrap().to_string(),
         );
         Ok(())

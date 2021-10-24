@@ -1,23 +1,19 @@
 {% extends "two-columns.jinja" %}
 {% block title %}Add a question{% endblock %}
 {% block content %}
-  <section>
-    <div class="container is-fluid">
-      <h2 class="title">Add a question</h2>
-      <form action="/questions" method="POST">
-        <div class="field">
-          <label class="label">Link</label>
-          <input class="input" type="text" placeholder="Link" name="link" value="{{ form.link }}">
-        </div>
-        <div class="field">
-          <label class="label">Question</label>
-          <textarea class="input" type="text" placeholder="Question prompt"
-            name="question-prompt"
-            disabled></textarea>
-        </div>
-        <input class="button is-primary" type="submit" value="Add">
-        <a href="/questions" class="button ml-2">Cancel</a>
-      </form>
+  <h2 class="title">Add a question</h2>
+  <form action="/questions" method="POST">
+    <div class="field">
+      <label class="label">Link</label>
+      <input class="input" type="text" placeholder="Link" name="link" value="{{ form.link }}">
     </div>
-  </section>
+    <div class="field">
+      <label class="label">Question</label>
+      <textarea class="input" type="text" placeholder="Question prompt"
+        name="question-prompt"
+        disabled></textarea>
+    </div>
+    <input class="button is-primary" type="submit" value="Add">
+    <a href="/questions" class="button ml-2">Cancel</a>
+  </form>
 {% endblock %}

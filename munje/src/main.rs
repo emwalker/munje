@@ -37,9 +37,7 @@ async fn main() -> Result<()> {
         App::new()
             .app_data(web::Data::new(AppState { db: db.clone() }))
             .wrap(middleware::Logger::default())
-            .wrap(middleware::NormalizePath::new(
-                middleware::TrailingSlash::Trim,
-            ))
+            .wrap(middleware::NormalizePath::trim())
             .wrap(message_framework(&session_key))
             .configure(routes::register)
             .configure(questions::routes::register)

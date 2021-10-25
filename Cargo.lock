@@ -1355,6 +1355,7 @@ dependencies = [
  "base64",
  "chrono",
  "ctor",
+ "derive_more",
  "dotenv",
  "env_logger",
  "log",

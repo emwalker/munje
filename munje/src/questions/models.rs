@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct CreateQuestion {
     pub link: String,
 }

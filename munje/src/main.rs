@@ -6,7 +6,7 @@ use actix_web::{middleware, web, App, HttpServer};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework, Level};
 use anyhow::Result;
 use dotenv::dotenv;
-use munje::{questions, routes, types::AppState};
+use munje::{questions, queues, routes, types::AppState};
 use sqlx::sqlite::SqlitePoolOptions;
 
 fn message_framework(session_key: &String) -> FlashMessagesFramework {
@@ -41,6 +41,7 @@ async fn main() -> Result<()> {
             .wrap(message_framework(&session_key))
             .configure(routes::register)
             .configure(questions::routes::register)
+            .configure(queues::routes::register)
     })
     .bind("127.0.0.1:8080")?;
 

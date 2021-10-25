@@ -1,9 +1,10 @@
-use crate::types::Pool;
 use anyhow::Result;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+
+use crate::types::Pool;
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct CreateQuestion {
@@ -21,9 +22,9 @@ pub struct Question {
 }
 
 impl Question {
-    pub async fn find_all(db: &Pool) -> Result<Vec<Question>> {
+    pub async fn find_all(db: &Pool) -> Result<Vec<Self>> {
         let questions = sqlx::query_as!(
-            Question,
+            Self,
             r#"
             select id, author_id, link, link_logo, created_at, updated_at
                 from questions
@@ -36,30 +37,21 @@ impl Question {
         Ok(questions)
     }
 
-    pub async fn find_by_id(id: String, db: &Pool) -> Result<Option<Question>> {
-        let question = sqlx::query_as!(
-            Question,
-            r#"
-            select id, author_id, link, link_logo, created_at, updated_at
-                from questions
-                where id = $1
-            "#,
-            id
-        )
-        .fetch_optional(db)
-        .await?;
-
+    pub async fn find_by_id(id: String, db: &Pool) -> Result<Option<Self>> {
+        let question = sqlx::query_as!(Self, "select * from questions where id = $1", id)
+            .fetch_optional(db)
+            .await?;
         Ok(question)
     }
 
     pub async fn create(
+        author_id: String,
         question: &CreateQuestion,
         link_logo: Option<String>,
         db: &Pool,
-    ) -> Result<Question> {
+    ) -> Result<Self> {
         let uuid = Uuid::new_v4().to_hyphenated().to_string();
         let created_at = Utc::now().to_rfc3339();
-        let author_id = "21546b43-dcde-43b2-a251-e736194de0a0";
 
         sqlx::query!(
             r#"
@@ -76,7 +68,7 @@ impl Question {
         .execute(db)
         .await?;
 
-        Ok(Question {
+        Ok(Self {
             id: uuid,
             author_id: author_id.to_string(),
             link: Some(question.link.to_string()),

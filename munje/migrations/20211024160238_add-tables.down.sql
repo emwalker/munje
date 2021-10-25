@@ -1,3 +1,5 @@
+drop table if exists queues_answers;
+drop table if exists answers_queues;
 drop table if exists answers;
 drop table if exists answer_states;
 drop table if exists queues;

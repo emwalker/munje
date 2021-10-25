@@ -1,4 +1,8 @@
-use actix_web::{error, get, http, post, web, Error, HttpResponse};
+use actix_web::{
+    error, get, http, post, web,
+    web::{Data, Form, Path},
+    Error, HttpResponse,
+};
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use anyhow::Result;
 use askama::Template;
@@ -8,10 +12,14 @@ use url::Url;
 
 use crate::page::Page;
 use crate::questions::{CreateQuestion, Question};
+use crate::queues::{CreateQueue, Queue};
 use crate::types::{AppState, CurrentPage, Message};
 
 pub fn register(cfg: &mut web::ServiceConfig) {
-    cfg.service(list).service(show_or_new).service(create);
+    cfg.service(list)
+        .service(show_or_new)
+        .service(create)
+        .service(start_queue);
 }
 
 fn page() -> CurrentPage {
@@ -52,7 +60,7 @@ impl error::ResponseError for ListError {
 
 #[get("/questions")]
 async fn list(
-    state: web::Data<AppState>,
+    state: Data<AppState>,
     messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, Error> {
     let items = Question::find_all(&state.db)
@@ -119,8 +127,8 @@ impl error::ResponseError for ShowError {
 
 #[get("/questions/{id}")]
 async fn show_or_new(
-    state: web::Data<AppState>,
-    path: web::Path<String>,
+    state: Data<AppState>,
+    path: Path<String>,
     messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, Error> {
     let id = path.into_inner();
@@ -211,17 +219,15 @@ impl error::ResponseError for CreateError {
 }
 
 #[post("/questions")]
-async fn create(
-    state: web::Data<AppState>,
-    form: web::Form<CreateQuestion>,
-) -> Result<HttpResponse, Error> {
+async fn create(state: Data<AppState>, form: Form<CreateQuestion>) -> Result<HttpResponse, Error> {
     let form = form.into_inner();
     let link_logo = fetch_logo(&form.link).await.map_err(|error| CreateError {
         form: form.clone(),
         message: format!("Problem fetching the logo: {}", error),
     })?;
+    let author_id = "21546b43-dcde-43b2-a251-e736194de0a0";
 
-    Question::create(&form, link_logo, &state.db)
+    Question::create(author_id.to_string(), &form, link_logo, &state.db)
         .await
         .map_err(|error| CreateError {
             form: form,
@@ -235,12 +241,43 @@ async fn create(
     Ok(redirect)
 }
 
+#[derive(Debug, Display, Error)]
+#[display(fmt = "There was a problem starting a queue")]
+struct StartQueueError {
+    message: String,
+}
+
+impl error::ResponseError for StartQueueError {
+    fn error_response(&self) -> HttpResponse {
+        FlashMessage::warning(self.message.clone()).send();
+        HttpResponse::SeeOther()
+            .append_header((http::header::LOCATION, "/questions"))
+            .finish()
+    }
+}
+
 #[post("/questions/{id}/queues")]
-async fn start_queue(path: web::Path<String>) -> Result<HttpResponse, Error> {
-    FlashMessage::info("New queue started").send();
+async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpResponse, Error> {
     let id = path.into_inner();
+
+    let queue = CreateQueue {
+        user_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        starting_question_id: id.clone(),
+    };
+    let result = Queue::find_or_create(&queue, &state.db)
+        .await
+        .map_err(|error| StartQueueError {
+            message: format!("Problem starting queue: {}", error),
+        })?;
+    if result.created {
+        FlashMessage::info("New queue started").send();
+    }
+
     let redirect = HttpResponse::SeeOther()
-        .append_header((http::header::LOCATION, format!("/queues/{}", id)))
+        .append_header((
+            http::header::LOCATION,
+            format!("/queues/{}", result.queue.id),
+        ))
         .finish();
     Ok(redirect)
 }

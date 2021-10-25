@@ -1,19 +1,13 @@
 #[macro_use]
 extern crate log;
-extern crate base64;
-
-mod models;
-mod page;
-mod routes;
-mod types;
 
 use actix_web::cookie::Key;
 use actix_web::{middleware, web, App, HttpServer};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework, Level};
 use anyhow::Result;
 use dotenv::dotenv;
+use munje::{questions, routes, types::AppState};
 use sqlx::sqlite::SqlitePoolOptions;
-use types::{AppState, Pool};
 
 fn message_framework(session_key: &String) -> FlashMessagesFramework {
     let bytes = base64::decode(session_key).unwrap();
@@ -37,15 +31,18 @@ async fn main() -> Result<()> {
     let session_key = std::env::var("SESSION_KEY").expect("SESSION_KEY not set");
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL not set");
     info!("using sqlite database at: {}", &database_url);
-    let pool = SqlitePoolOptions::new().connect(&database_url).await?;
+    let db = SqlitePoolOptions::new().connect(&database_url).await?;
 
     let server = HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(AppState { pool: pool.clone() }))
+            .app_data(web::Data::new(AppState { db: db.clone() }))
             .wrap(middleware::Logger::default())
-            .wrap(middleware::NormalizePath::new(middleware::TrailingSlash::Trim))
+            .wrap(middleware::NormalizePath::new(
+                middleware::TrailingSlash::Trim,
+            ))
             .wrap(message_framework(&session_key))
-            .configure(routes::init)
+            .configure(routes::register)
+            .configure(questions::routes::register)
     })
     .bind("127.0.0.1:8080")?;
 

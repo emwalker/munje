@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-use crate::types::{AppState, Pool};
 use actix_web::cookie::Key;
 use actix_web::dev::{HttpServiceFactory, Service};
-use actix_web::{http, test, web, cookie, App};
+use actix_web::{cookie, http, test, web, App};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
 use anyhow::Error;
 use anyhow::Result;
+use munje::types::{AppState, Pool};
 use scraper::{ElementRef, Html, Selector};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::str;
@@ -63,7 +63,7 @@ impl Document {
 }
 
 pub struct Runner {
-    pub pool: Pool,
+    pub db: Pool,
     signing_key: cookie::Key,
 }
 
@@ -71,8 +71,11 @@ impl Runner {
     pub async fn new() -> Self {
         let signing_key = Key::generate(); // This will usually come from configuration!
 
-        match Self::fetch_pool().await {
-            Ok(pool) => Runner { pool: pool, signing_key },
+        match Self::fetch_db().await {
+            Ok(db) => Runner {
+                db: db,
+                signing_key,
+            },
             Err(err) => panic!("There was a problem: {}", err),
         }
     }
@@ -86,7 +89,7 @@ impl Runner {
 
         let app = App::new()
             .app_data(web::Data::new(AppState {
-                pool: self.pool.clone(),
+                db: self.db.clone(),
             }))
             .wrap(message_framework.clone())
             .service(factory);
@@ -115,12 +118,13 @@ impl Runner {
 
         let app = App::new()
             .app_data(web::Data::new(AppState {
-                pool: self.pool.clone(),
+                db: self.db.clone(),
             }))
             .wrap(message_framework.clone())
             .service(factory);
         let app = test::init_service(app).await;
-        let req = test::TestRequest::post().uri(path)
+        let req = test::TestRequest::post()
+            .uri(path)
             .append_header(("Content-type", "application/x-www-form-urlencoded"))
             .to_request();
 
@@ -130,7 +134,7 @@ impl Runner {
         Ok(())
     }
 
-    async fn fetch_pool() -> Result<Pool> {
+    async fn fetch_db() -> Result<Pool> {
         let result = SqlitePoolOptions::new()
             .max_connections(1)
             .connect("sqlite::memory:")

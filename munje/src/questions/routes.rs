@@ -1,8 +1,3 @@
-use crate::models::{Question, QuestionData};
-use crate::page::Page;
-use crate::types::{CurrentPage, Message};
-use crate::{AppState, Pool};
-
 use actix_web::{get, http, post, web, Error, HttpResponse};
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use anyhow::Result;
@@ -10,7 +5,11 @@ use askama::Template;
 use reqwest;
 use url::Url;
 
-pub fn configure(cfg: &mut web::ServiceConfig) {
+use crate::page::Page;
+use crate::questions::{CreateQuestion, Question};
+use crate::types::{AppState, CurrentPage, Message, Pool};
+
+pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(list).service(show_or_new).service(create);
 }
 
@@ -28,8 +27,8 @@ struct List<'a> {
     page: CurrentPage,
 }
 
-async fn fetch_all(pool: &Pool, messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
-    let result = Question::find_all(pool).await;
+async fn fetch_all(db: &Pool, messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
+    let result = Question::find_all(db).await;
     let s = match result {
         Ok(items) => List {
             items: &items,
@@ -48,13 +47,13 @@ async fn list(
     state: web::Data<AppState>,
     messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, Error> {
-    fetch_all(&state.pool, messages).await
+    fetch_all(&state.db, messages).await
 }
 
 #[derive(Template)]
 #[template(path = "questions/new.jinja")]
 struct New<'a> {
-    form: &'a QuestionData,
+    form: &'a CreateQuestion,
     messages: &'a Vec<Message>,
     page: CurrentPage,
 }
@@ -84,7 +83,7 @@ async fn show_or_new(
     let messages = &Message::to_messages(&messages);
     let s = match id.as_ref() {
         "new" => {
-            let form = &QuestionData {
+            let form = &CreateQuestion {
                 link: "".to_string(),
             };
             New {
@@ -96,7 +95,7 @@ async fn show_or_new(
             .unwrap()
         }
         _ => {
-            let result = Question::find_by_id(id, &state.pool).await;
+            let result = Question::find_by_id(id, &state.db).await;
             match result {
                 Ok(Some(question)) => Show {
                     question: &question,
@@ -149,7 +148,7 @@ async fn fetch_logo(link: &String) -> Result<Option<String>> {
 #[post("/questions")]
 async fn create(
     state: web::Data<AppState>,
-    form: web::Form<QuestionData>,
+    form: web::Form<CreateQuestion>,
 ) -> Result<HttpResponse, Error> {
     let data = form.into_inner();
 
@@ -170,7 +169,7 @@ async fn create(
 
     match fetch_logo(&data.link).await {
         Ok(link_logo) => {
-            let result = Question::create(&data, link_logo, &state.pool).await;
+            let result = Question::create(&data, link_logo, &state.db).await;
             match result {
                 Err(err) => error_result(format!("There was a problem: {:?}", err)),
                 Ok(_) => {
@@ -187,84 +186,11 @@ async fn create(
 }
 
 #[post("/questions/{id}/queues")]
-async fn start_queue(
-    path: web::Path<(String,)>
-) -> Result<HttpResponse, Error> {
+async fn start_queue(path: web::Path<(String,)>) -> Result<HttpResponse, Error> {
     FlashMessage::info("New queue started").send();
     let id = path.into_inner().0;
     let redirect = HttpResponse::SeeOther()
         .append_header((http::header::LOCATION, format!("/queues/{}", id)))
         .finish();
     Ok(redirect)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::super::testing::{Runner, TestResult};
-    use super::*;
-
-    #[actix_rt::test]
-    async fn test_list() -> TestResult {
-        let doc = Runner::new().await.get(list, "/questions").await?;
-        assert_eq!("Questions", doc.select_text("h2").unwrap());
-        Ok(())
-    }
-
-    #[actix_rt::test]
-    async fn new() -> TestResult {
-        let doc = Runner::new()
-            .await
-            .get(show_or_new, "/questions/new")
-            .await?;
-        assert_eq!("Add a question", doc.select_text("h2").unwrap());
-        Ok(())
-    }
-
-    #[actix_rt::test]
-    async fn unknown() -> TestResult {
-        let doc = Runner::new()
-            .await
-            .get(show_or_new, "/questions/unknown")
-            .await?;
-        let title = doc.select_text("title").unwrap();
-        assert_eq!("Question not found", title);
-        Ok(())
-    }
-
-    #[actix_rt::test]
-    async fn show() -> TestResult {
-        let harness = Runner::new().await;
-        let data = QuestionData {
-            link: "some-link".to_string(),
-        };
-        let question = Question::create(&data, Some("logo-url".to_string()), &harness.pool).await?;
-        let path = format!("/questions/{}", question.id);
-        let doc = harness.get(show_or_new, &path).await?;
-
-        assert_eq!("Question", doc.css("h2")?.first().unwrap().inner_html());
-        assert_eq!(
-            "some-link",
-            doc.css("a.link")?
-                .first()
-                .unwrap()
-                .value()
-                .attr("href")
-                .unwrap(),
-        );
-        assert!(doc.css("div.link-logo")?.exists());
-        assert!(doc.css("button.start-queue")?.exists());
-        Ok(())
-    }
-
-    #[actix_rt::test]
-    async fn test_start_queue() -> TestResult {
-        let harness = Runner::new().await;
-        let data = QuestionData {
-            link: "some-link".to_string(),
-        };
-        let question = Question::create(&data, Some("logo-url".to_string()), &harness.pool).await?;
-        let path = format!("/questions/{}/queues", question.id);
-        harness.post(start_queue, &path).await?;
-        Ok(())
-    }
 }

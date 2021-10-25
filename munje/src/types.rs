@@ -4,7 +4,7 @@ use sqlx::SqlitePool;
 pub type Pool = SqlitePool;
 
 pub struct AppState {
-    pub pool: Pool,
+    pub db: Pool,
 }
 
 pub struct Message {

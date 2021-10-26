@@ -7,7 +7,7 @@ use actix_web_flash_messages::IncomingFlashMessages;
 use askama::Template;
 use derive_more::{Display, Error};
 
-use crate::queues::Queue;
+use crate::queues::{NextAnswer, Queue};
 use crate::types::{AppState, CurrentPage, Message};
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -26,6 +26,7 @@ struct Show<'a> {
     queue: &'a Queue,
     messages: &'a Vec<Message>,
     page: CurrentPage,
+    next_answer: &'a Option<NextAnswer>,
 }
 
 #[derive(Template)]
@@ -70,12 +71,22 @@ async fn show(
         .map_err(|error| ShowError {
             message: format!("Problem fetching question: {}", error),
         })?;
+    let answer;
 
     let s = match result {
-        Some(queue) => Show {
-            queue: &queue,
-            messages,
-            page: page(),
+        Some(queue) => {
+            answer = queue
+                .next_answer(&state.db)
+                .await
+                .map_err(|error| ShowError {
+                    message: format!("Problem fetching next answer: {}", error),
+                })?;
+            Show {
+                queue: &queue,
+                messages,
+                page: page(),
+                next_answer: &answer,
+            }
         }
         .render()
         .unwrap(),

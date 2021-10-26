@@ -7,4 +7,19 @@
     This is a queue that started with
     <a href="/questions/{{ queue.starting_question_id }}">this question</a>.
   </p>
+
+  <div>
+    {% match next_answer %}
+      {% when Some with (na) %}
+        {{ na.answer_id }}
+        {% match na.question_link %}
+          {% when Some with (link) %}
+            {{ link }}
+          {% else %}
+            No link
+        {% endmatch %}
+      {% else %}
+        No next answer
+    {% endmatch %}
+  </div>
 {% endblock %}

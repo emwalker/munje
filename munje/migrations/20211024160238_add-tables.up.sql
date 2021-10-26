@@ -67,12 +67,3 @@ insert into questions (id, author_id, link, link_logo, created_at, updated_at)
     '2021-10-24T15:28:49.777100169+00:00',
     '2021-10-24T15:28:49.777100169+00:00'
   );
-
-create table queues_answers (
-  user_id text not null,
-  queue_id text not null,
-  answer_id text not null,
-  foreign key (user_id) references users(id),
-  foreign key (queue_id) references queues(id),
-  foreign key (answer_id) references answers(id)
-);

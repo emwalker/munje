@@ -14,20 +14,9 @@
   {% endmatch %}
   </div>
 
-  {% match question.link %}
-    {% when Some with (link) %}
-      <p>
-        Complete the challenge at
-        <a target=”_blank” class="link" href="{{ link|safe }}">this link
-          <span class="icon">
-            <i class="fas fa-external-link-alt"></i>
-          </span>
-        </a>.
-        When you're done, come back to this question and indicate whether you solved the problem.
-      </p>
-    {% else %}
-      Question text: tbd
-  {% endmatch %}
+  <div class="markdown-body mb-5">
+    {{ question.markdown()|safe }}
+  </div>
 
   <form method="POST" action="/questions/{{ question.id }}/queues">
     <button class="button start-queue is-primary is-pulled-right">Start queue</button>

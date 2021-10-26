@@ -1,23 +1,28 @@
 {% extends "two-columns.jinja" %}
 {% block title %}View question{% endblock %}
 {% block content %}
-  <h2 class="title">Queue</h2>
-
-  <p>
-    This is a queue that started with
-    <a href="/questions/{{ queue.starting_question_id }}">this question</a>.
-  </p>
+  <h2 class="title">Algorithms and data structures</h2>
 
   <div>
     {% match next_answer %}
       {% when Some with (na) %}
-        {{ na.answer_id }}
-        {% match na.question_link %}
-          {% when Some with (link) %}
-            {{ link }}
-          {% else %}
-            No link
-        {% endmatch %}
+        <div class="card">
+          <div class="card-content">
+            <div class="markdown-body mt-5 mb-5">
+              {{ na.markdown()|safe }}
+            </div>
+            <form method="POST" class="has-text-centered"
+              action="/queues/{{ queue.id }}/answers/{{ na.answer_id }}"
+            >
+              <input class="button is-success is-large is-light mr-6"
+                type="submit" name="state" value="Correct" />
+              <input class="button is-danger is-large is-light mr-6"
+                type="submit" name="state" value="Incorrect" />
+              <input class="button is-info is-large is-light"
+                type="submit" name="state" value="Too hard" />
+            </form>
+          </div>
+        </div>
       {% else %}
         No next answer
     {% endmatch %}

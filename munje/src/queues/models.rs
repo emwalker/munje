@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::prelude::*;
+use comrak::{markdown_to_html, ComrakOptions};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -47,8 +48,14 @@ pub struct CreateAnswer {
 #[derive(Debug, Serialize, FromRow)]
 pub struct NextAnswer {
     pub answer_id: String,
+    pub question_text: String,
     pub question_link: Option<String>,
     pub question_id: String,
+}
+
+pub struct AnswerQuestion {
+    pub answer_id: String,
+    pub state: String,
 }
 
 trait Creatable {
@@ -142,7 +149,7 @@ impl Queue {
         let result = sqlx::query_as!(
             NextAnswer,
             r#"
-            select a.id answer_id, a.question_id, q.link question_link
+            select a.id answer_id, a.question_id, q.text question_text, q.link question_link
             from answers a
             join questions q on a.question_id = q.id
             where a.queue_id = $1 and a.state = 'unstarted'
@@ -153,6 +160,14 @@ impl Queue {
         .fetch_optional(db)
         .await?;
         Ok(result)
+    }
+
+    pub async fn answer_question(&self, answer: AnswerQuestion, db: &Pool) -> Result<()> {
+        Answer::update_state(answer.answer_id, answer.state, db).await?;
+
+        // Add 1-5 questions to the queue
+
+        Ok(())
     }
 }
 
@@ -191,6 +206,17 @@ impl Answer {
         })
     }
 
+    pub async fn update_state(answer_id: String, state: String, db: &Pool) -> Result<()> {
+        sqlx::query!(
+            "update answers set state = $1 where id = $2",
+            state,
+            answer_id,
+        )
+        .execute(db)
+        .await?;
+        Ok(())
+    }
+
     pub async fn question(&self, db: &Pool) -> Result<Question> {
         let question = sqlx::query_as!(
             Question,
@@ -200,5 +226,11 @@ impl Answer {
         .fetch_one(db)
         .await?;
         Ok(question)
+    }
+}
+
+impl NextAnswer {
+    pub fn markdown(&self) -> String {
+        markdown_to_html(&self.question_text, &ComrakOptions::default())
     }
 }

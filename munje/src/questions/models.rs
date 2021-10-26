@@ -1,5 +1,7 @@
 use anyhow::Result;
 use chrono::prelude::*;
+use comrak::{markdown_to_html, ComrakOptions};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
@@ -15,6 +17,7 @@ pub struct CreateQuestion {
 pub struct Question {
     pub id: String,
     pub author_id: String,
+    pub text: String,
     pub link: Option<String>,
     pub link_logo: Option<String>,
     pub created_at: String,
@@ -26,7 +29,7 @@ impl Question {
         let questions = sqlx::query_as!(
             Self,
             r#"
-            select id, author_id, link, link_logo, created_at, updated_at
+            select id, author_id, text, link, link_logo, created_at, updated_at
                 from questions
                 order by created_at desc
             "#
@@ -53,13 +56,19 @@ impl Question {
         let uuid = Uuid::new_v4().to_hyphenated().to_string();
         let created_at = Utc::now().to_rfc3339();
 
+        let s = format!(
+            "Complete the challenge at [this link]({}). When you're done, come back
+             to this question and indicate whether you solved the problem.",
+            question.link,
+        );
+        let text = Regex::new(r"\s+").unwrap().replace_all(&s, " ").to_string();
+
         sqlx::query!(
-            r#"
-            insert into questions (id, author_id, link, link_logo, created_at, updated_at)
-                values ($1, $2, $3, $4, $5, $6)
-            "#,
+            "insert into questions (id, author_id, text, link, link_logo, created_at, updated_at)
+                values ($1, $2, $3, $4, $5, $6, $7)",
             uuid,
             author_id,
+            text,
             question.link,
             link_logo,
             created_at,
@@ -71,10 +80,15 @@ impl Question {
         Ok(Self {
             id: uuid,
             author_id: author_id.to_string(),
+            text,
             link: Some(question.link.to_string()),
             link_logo: link_logo,
             created_at: created_at.clone(),
             updated_at: created_at,
         })
+    }
+
+    pub fn markdown(&self) -> String {
+        markdown_to_html(&self.text, &ComrakOptions::default())
     }
 }

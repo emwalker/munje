@@ -63,15 +63,6 @@ async fn show() -> TestResult {
     let doc = harness.get(questions::routes::show_or_new, &path).await?;
 
     assert_eq!("Question", doc.css("h2")?.first().unwrap().inner_html());
-    assert_eq!(
-        "some-link",
-        doc.css("a.link")?
-            .first()
-            .unwrap()
-            .value()
-            .attr("href")
-            .unwrap(),
-    );
     assert!(doc.css("div.link-logo")?.exists());
     assert!(doc.css("button.start-queue")?.exists());
     Ok(())

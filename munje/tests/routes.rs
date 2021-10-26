@@ -54,7 +54,7 @@ async fn show() -> TestResult {
     };
     let question = Question::create(
         "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
-        &data,
+        data,
         Some("logo-url".to_string()),
         &harness.db,
     )
@@ -85,7 +85,7 @@ async fn test_start_queue() -> TestResult {
     };
     let question = Question::create(
         "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
-        &data,
+        data,
         Some("logo-url".to_string()),
         &harness.db,
     )

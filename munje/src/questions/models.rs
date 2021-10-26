@@ -46,7 +46,7 @@ impl Question {
 
     pub async fn create(
         author_id: String,
-        question: &CreateQuestion,
+        question: CreateQuestion,
         link_logo: Option<String>,
         db: &Pool,
     ) -> Result<Self> {

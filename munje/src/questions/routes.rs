@@ -227,7 +227,7 @@ async fn create(state: Data<AppState>, form: Form<CreateQuestion>) -> Result<Htt
     })?;
     let author_id = "21546b43-dcde-43b2-a251-e736194de0a0";
 
-    Question::create(author_id.to_string(), &form, link_logo, &state.db)
+    Question::create(author_id.to_string(), form.clone(), link_logo, &state.db)
         .await
         .map_err(|error| CreateError {
             form: form,
@@ -264,7 +264,7 @@ async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpRe
         user_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
         starting_question_id: id.clone(),
     };
-    let result = Queue::find_or_create(&queue, &state.db)
+    let result = Queue::find_or_create(queue, &state.db)
         .await
         .map_err(|error| StartQueueError {
             message: format!("Problem starting queue: {}", error),

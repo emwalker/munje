@@ -26,8 +26,16 @@ pub struct CreateResult {
     pub created: bool,
 }
 
+#[derive(Debug, Serialize, FromRow)]
+pub struct Answer {
+    pub id: String,
+    pub user_id: String,
+    pub queue_id: String,
+    pub question_id: String,
+}
+
 impl Queue {
-    pub async fn create(queue: &CreateQueue, db: &Pool) -> Result<Self> {
+    pub async fn create(queue: CreateQueue, db: &Pool) -> Result<Self> {
         let uuid = Uuid::new_v4().to_hyphenated().to_string();
         let created_at = Utc::now().to_rfc3339();
 
@@ -61,7 +69,7 @@ impl Queue {
         Ok(queue)
     }
 
-    pub async fn find_or_create(queue: &CreateQueue, db: &Pool) -> Result<CreateResult> {
+    pub async fn find_or_create(queue: CreateQueue, db: &Pool) -> Result<CreateResult> {
         let result = sqlx::query_as!(
             Self,
             r#"

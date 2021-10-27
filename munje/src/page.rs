@@ -43,6 +43,15 @@ impl Page {
         }
     }
 
+    #[allow(dead_code)]
+    pub fn title(&self) -> Option<String> {
+        let sel = Selector::parse("title").unwrap();
+        self.html
+            .select(&sel)
+            .next()
+            .map(|element| element.inner_html())
+    }
+
     fn extract_meta_image(&self, content: &str) -> Option<Url> {
         let fetched = Url::parse(content);
         match fetched {
@@ -66,16 +75,6 @@ impl Page {
                 error!("Error parsing fetched url: {}", err);
                 None
             }
-        }
-    }
-
-    #[allow(dead_code)]
-    fn title(&self) -> Option<String> {
-        let sel = Selector::parse("title").unwrap();
-        let result = self.html.select(&sel).next();
-        match result {
-            None => None,
-            Some(element) => Some(element.inner_html()),
         }
     }
 }

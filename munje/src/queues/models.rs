@@ -1,8 +1,9 @@
 use anyhow::Result;
-use chrono::prelude::*;
+use chrono::{prelude::*, DateTime};
 use comrak::{markdown_to_html, ComrakOptions};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
+use timeago::Formatter;
 use uuid::Uuid;
 
 use crate::questions::Question;
@@ -46,15 +47,21 @@ pub struct CreateAnswer {
 }
 
 #[derive(Debug, Serialize, FromRow)]
-pub struct NextAnswer {
+pub struct WideAnswer {
     pub answer_id: String,
+    pub answer_state: String,
+    pub answer_updated_at: String,
+    pub question_title: String,
     pub question_text: String,
     pub question_link: Option<String>,
     pub question_id: String,
+    pub queue_id: String,
 }
 
 pub struct AnswerQuestion {
     pub answer_id: String,
+    pub user_id: String,
+    pub queue_id: String,
     pub state: String,
 }
 
@@ -145,11 +152,14 @@ impl Queue {
         Ok(answers)
     }
 
-    pub async fn next_answer(&self, db: &Pool) -> Result<Option<NextAnswer>> {
+    pub async fn next_answer(&self, db: &Pool) -> Result<Option<WideAnswer>> {
         let result = sqlx::query_as!(
-            NextAnswer,
+            WideAnswer,
             r#"
-            select a.id answer_id, a.question_id, q.text question_text, q.link question_link
+            select
+                a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
+                q.text question_text, q.link question_link,
+                a.queue_id, a.updated_at answer_updated_at
             from answers a
             join questions q on a.question_id = q.id
             where a.queue_id = $1 and a.state = 'unstarted'
@@ -163,9 +173,28 @@ impl Queue {
     }
 
     pub async fn answer_question(&self, answer: AnswerQuestion, db: &Pool) -> Result<()> {
-        Answer::update_state(answer.answer_id, answer.state, db).await?;
+        Answer::update_state(answer.answer_id.clone(), answer.state, db).await?;
+        let answer = Answer::find_by_id(answer.answer_id, db)
+            .await?
+            .expect("expected an answer");
 
-        // Add 1-5 questions to the queue
+        let next_question_id = sqlx::query!(
+            "select id from questions where id <> $1 order by random() limit 1",
+            answer.question_id,
+        )
+        .fetch_one(db)
+        .await
+        .map(|rec| rec.id)?;
+
+        Answer::create(
+            CreateAnswer {
+                user_id: answer.user_id.clone(),
+                queue_id: answer.queue_id.clone(),
+                question_id: next_question_id,
+            },
+            db,
+        )
+        .await?;
 
         Ok(())
     }
@@ -174,6 +203,13 @@ impl Queue {
 impl Creatable for Answer {}
 
 impl Answer {
+    pub async fn find_by_id(id: String, db: &Pool) -> Result<Option<Self>> {
+        let answer = sqlx::query_as!(Self, "select * from answers where id = $1", id)
+            .fetch_optional(db)
+            .await?;
+        Ok(answer)
+    }
+
     async fn create(answer: CreateAnswer, db: &Pool) -> Result<Answer> {
         let (id, timestamp) = Self::id_and_timestamp();
         let state = "unstarted";
@@ -207,9 +243,11 @@ impl Answer {
     }
 
     pub async fn update_state(answer_id: String, state: String, db: &Pool) -> Result<()> {
+        let (_id, timestamp) = Self::id_and_timestamp();
         sqlx::query!(
-            "update answers set state = $1 where id = $2",
+            "update answers set state = $1, updated_at = $2 where id = $3",
             state,
+            timestamp,
             answer_id,
         )
         .execute(db)
@@ -229,8 +267,54 @@ impl Answer {
     }
 }
 
-impl NextAnswer {
+impl WideAnswer {
     pub fn markdown(&self) -> String {
         markdown_to_html(&self.question_text, &ComrakOptions::default())
+    }
+
+    pub async fn recent_answers(&self, db: &Pool) -> Result<Vec<WideAnswer>> {
+        let answers = sqlx::query_as!(
+            WideAnswer,
+            "select
+                a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
+                q.text question_text, q.link question_link, a.queue_id,
+                a.updated_at answer_updated_at
+             from answers a
+             join questions q on a.question_id = q.id
+             where a.queue_id = $1 order by a.created_at desc limit 20",
+            self.queue_id
+        )
+        .fetch_all(db)
+        .await?;
+        Ok(answers)
+    }
+
+    pub fn tag_class(&self) -> String {
+        match self.answer_state.as_ref() {
+            "unsure" => "is-info",
+            "incorrect" => "is-danger",
+            "correct" => "is-success",
+            _ => "",
+        }
+        .to_string()
+    }
+
+    pub fn tag_text(&self) -> String {
+        match self.answer_state.as_ref() {
+            "unsure" => "Too hard",
+            "incorrect" => "Incorrect",
+            "correct" => "Correct",
+            "unstarted" => "Not answered",
+            _ => "",
+        }
+        .to_string()
+    }
+
+    pub fn timeago(&self) -> Result<String> {
+        let formatter = Formatter::new();
+        let dt1 = DateTime::parse_from_rfc3339(&self.answer_updated_at)?;
+        let dt2 = Utc::now();
+        let duration = dt2.signed_duration_since(dt1).to_std()?;
+        Ok(formatter.convert(duration))
     }
 }

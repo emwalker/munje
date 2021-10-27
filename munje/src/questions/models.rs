@@ -10,13 +10,17 @@ use crate::types::Pool;
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct CreateQuestion {
+    pub author_id: String,
+    pub title: String,
     pub link: String,
+    pub link_logo: Option<String>,
 }
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct Question {
     pub id: String,
     pub author_id: String,
+    pub title: String,
     pub text: String,
     pub link: Option<String>,
     pub link_logo: Option<String>,
@@ -29,7 +33,7 @@ impl Question {
         let questions = sqlx::query_as!(
             Self,
             r#"
-            select id, author_id, text, link, link_logo, created_at, updated_at
+            select id, author_id, title, text, link, link_logo, created_at, updated_at
                 from questions
                 order by created_at desc
             "#
@@ -47,12 +51,7 @@ impl Question {
         Ok(question)
     }
 
-    pub async fn create(
-        author_id: String,
-        question: CreateQuestion,
-        link_logo: Option<String>,
-        db: &Pool,
-    ) -> Result<Self> {
+    pub async fn create(question: CreateQuestion, db: &Pool) -> Result<Self> {
         let uuid = Uuid::new_v4().to_hyphenated().to_string();
         let created_at = Utc::now().to_rfc3339();
 
@@ -64,13 +63,15 @@ impl Question {
         let text = Regex::new(r"\s+").unwrap().replace_all(&s, " ").to_string();
 
         sqlx::query!(
-            "insert into questions (id, author_id, text, link, link_logo, created_at, updated_at)
-                values ($1, $2, $3, $4, $5, $6, $7)",
+            "insert into questions
+                (id, author_id, title, text, link, link_logo, created_at, updated_at)
+             values ($1, $2, $3, $4, $5, $6, $7, $8)",
             uuid,
-            author_id,
+            question.author_id,
+            question.title,
             text,
             question.link,
-            link_logo,
+            question.link_logo,
             created_at,
             created_at
         )
@@ -79,10 +80,11 @@ impl Question {
 
         Ok(Self {
             id: uuid,
-            author_id: author_id.to_string(),
+            author_id: question.author_id.to_string(),
+            title: question.title,
             text,
             link: Some(question.link.to_string()),
-            link_logo: link_logo,
+            link_logo: question.link_logo,
             created_at: created_at.clone(),
             updated_at: created_at,
         })

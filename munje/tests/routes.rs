@@ -49,21 +49,21 @@ async fn unknown() -> TestResult {
 #[actix_rt::test]
 async fn show() -> TestResult {
     let harness = Runner::new().await;
-    let data = CreateQuestion {
+    let question = CreateQuestion {
+        author_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        title: "some-title".to_string(),
         link: "some-link".to_string(),
+        link_logo: Some("logo-url".to_string()),
     };
-    let question = Question::create(
-        "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
-        data,
-        Some("logo-url".to_string()),
-        &harness.db,
-    )
-    .await?;
+    let question = Question::create(question, &harness.db).await?;
     let path = format!("/questions/{}", question.id);
     let doc = harness.get(questions::routes::show_or_new, &path).await?;
 
-    assert_eq!("Question", doc.css("h2")?.first().unwrap().inner_html());
-    assert!(doc.css("div.link-logo")?.exists());
+    assert_eq!(
+        "some-title",
+        doc.css("span.title-span")?.first().unwrap().inner_html()
+    );
+    assert!(doc.css("span.link-logo")?.exists());
     assert!(doc.css("button.start-queue")?.exists());
     Ok(())
 }
@@ -71,16 +71,13 @@ async fn show() -> TestResult {
 #[actix_rt::test]
 async fn test_start_queue() -> TestResult {
     let harness = Runner::new().await;
-    let data = CreateQuestion {
+    let question = CreateQuestion {
+        author_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        title: "some-title".to_string(),
         link: "some-link".to_string(),
+        link_logo: Some("logo-url".to_string()),
     };
-    let question = Question::create(
-        "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
-        data,
-        Some("logo-url".to_string()),
-        &harness.db,
-    )
-    .await?;
+    let question = Question::create(question, &harness.db).await?;
     let path = format!("/questions/{}/queues", question.id);
     harness.post(questions::routes::start_queue, &path).await?;
     Ok(())

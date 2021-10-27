@@ -7,18 +7,19 @@
     {% match next_answer %}
       {% when Some with (na) %}
         <div class="card">
+          <div class="card-header-title">{{ na.question_title }}</div>
           <div class="card-content">
-            <div class="markdown-body mt-5 mb-5">
+            <div class="markdown-body mb-5">
               {{ na.markdown()|safe }}
             </div>
             <form method="POST" class="has-text-centered"
               action="/queues/{{ queue.id }}/answers/{{ na.answer_id }}"
             >
-              <input class="button is-success is-large is-light mr-6"
+              <input class="button is-success is-medium is-light mr-6"
                 type="submit" name="state" value="Correct" />
-              <input class="button is-danger is-large is-light mr-6"
+              <input class="button is-danger is-medium is-light mr-6"
                 type="submit" name="state" value="Incorrect" />
-              <input class="button is-info is-large is-light"
+              <input class="button is-info is-medium is-light"
                 type="submit" name="state" value="Too hard" />
             </form>
           </div>
@@ -26,5 +27,34 @@
       {% else %}
         No next answer
     {% endmatch %}
+  </div>
+
+  <h3 class="subtitle mt-6">Recent answers</h3>
+  <table class="table is-striped is-hoverable is-fullwidth">
+    <tbody>
+      {% match recent_answers %}
+        {% when Some with (answers) %}
+          {% for answer in answers %}
+            <tr>
+              <td>{{ answer.question_title }}</td>
+              <td class="has-text-centered">
+                <span class="tag is-light {{ answer.tag_class() }}">
+                  {{ answer.tag_text() }}
+                </span>
+              </td>
+              <td class="has-text-centered">
+                {% match answer.timeago() %}
+                  {% when Ok with (ago) %}
+                    {{ ago }}
+                  {% else %}
+                    unknown time ago
+                {% endmatch %}
+              </td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          No recent answers
+      {% endmatch %}
+    </tbody>
   </div>
 {% endblock %}

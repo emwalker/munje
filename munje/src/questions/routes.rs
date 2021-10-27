@@ -8,6 +8,7 @@ use anyhow::Result;
 use askama::Template;
 use derive_more::{Display, Error};
 use reqwest;
+use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::page::Page;
@@ -80,10 +81,16 @@ async fn list(
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct QuestionForm {
+    title: String,
+    link: String,
+}
+
 #[derive(Template)]
 #[template(path = "questions/new.jinja")]
 struct New<'a> {
-    form: &'a CreateQuestion,
+    form: &'a QuestionForm,
     messages: &'a Vec<Message>,
     page: CurrentPage,
 }
@@ -136,7 +143,8 @@ async fn show_or_new(
 
     let s = match id.as_ref() {
         "new" => {
-            let form = &CreateQuestion {
+            let form = &QuestionForm {
+                title: "".to_string(),
                 link: "".to_string(),
             };
             New {
@@ -174,30 +182,18 @@ async fn show_or_new(
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
-async fn fetch_logo(link: &String) -> Result<Option<String>> {
+async fn fetch_page(link: &String) -> Result<Page> {
     let original_url = Url::parse(link)?;
     info!("Fetching text at link {}", original_url);
     let html = reqwest::get(link).await?.text().await?;
-    match Page::parse(html, link.to_string()) {
-        Ok(page) => match page.meta_image() {
-            Some(url) => {
-                let url_str = url.to_string();
-                info!("Using logo url: {}", url_str);
-                Ok(Some(url_str))
-            }
-            None => Ok(None),
-        },
-        Err(err) => {
-            error!("Problem parsing page: {:?}", err);
-            Ok(None)
-        }
-    }
+    let page = Page::parse(html, link.to_string())?;
+    Ok(page)
 }
 
 #[derive(Debug, Display, Error)]
 #[display(fmt = "There was a problem")]
 struct CreateError {
-    form: CreateQuestion,
+    form: QuestionForm,
     message: String,
 }
 
@@ -219,15 +215,21 @@ impl error::ResponseError for CreateError {
 }
 
 #[post("/questions")]
-async fn create(state: Data<AppState>, form: Form<CreateQuestion>) -> Result<HttpResponse, Error> {
+async fn create(state: Data<AppState>, form: Form<QuestionForm>) -> Result<HttpResponse, Error> {
     let form = form.into_inner();
-    let link_logo = fetch_logo(&form.link).await.map_err(|error| CreateError {
+    let page = fetch_page(&form.link).await.map_err(|error| CreateError {
         form: form.clone(),
         message: format!("Problem fetching the logo: {}", error),
     })?;
     let author_id = "21546b43-dcde-43b2-a251-e736194de0a0";
 
-    Question::create(author_id.to_string(), form.clone(), link_logo, &state.db)
+    let question = CreateQuestion {
+        author_id: author_id.to_string(),
+        link: form.link.clone(),
+        link_logo: page.meta_image().map(|url| url.to_string()),
+        title: form.title.clone(),
+    };
+    Question::create(question, &state.db)
         .await
         .map_err(|error| CreateError {
             form: form,

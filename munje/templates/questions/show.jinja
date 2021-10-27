@@ -1,18 +1,20 @@
 {% extends "two-columns.jinja" %}
 {% block title %}View question{% endblock %}
 {% block content %}
-  <h2 class="title">Question</h2>
-
-  <div class="link-logo">
-  {% match question.link_logo %}
-    {% when Some with (link_logo) %}
-    <object data="{{ link_logo }}" type="image/png">
+  <h2 class="title">
+    <span class="link-logo mr-3">
+    {% match question.link_logo %}
+      {% when Some with (link_logo) %}
+      <object data="{{ link_logo }}" type="image/png">
+        {% include "default-icon.jinja" %}
+      </object>
+      {% else %}
       {% include "default-icon.jinja" %}
-    </object>
-    {% else %}
-    {% include "default-icon.jinja" %}
-  {% endmatch %}
-  </div>
+    {% endmatch %}
+    </span>
+
+    <span class="title-span">{{ question.title }}</span>
+  </h2>
 
   <div class="markdown-body mb-5">
     {{ question.markdown()|safe }}

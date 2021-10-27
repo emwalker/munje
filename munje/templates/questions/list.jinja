@@ -6,6 +6,7 @@
   {% if items.len() > 0 %}
     {% for question in items %}
       <div class="card">
+        <div class="card-header-title">{{ question.title }}</div>
         <a href="/questions/{{ question.id }}">
           <div class="columns">
             <div class="column card-image m-3">

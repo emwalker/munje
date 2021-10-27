@@ -25,6 +25,7 @@ serde = "1"
 serde_derive = "1"
 serde_json = "1"
 sqlx = { version = "0.5", features = ["sqlite", "migrate", "runtime-actix-native-tls", "offline"] }
+timeago = "0"
 totems = "0"
 url = "2"
 uuid = { version = "0", features = ["serde", "v4"] }

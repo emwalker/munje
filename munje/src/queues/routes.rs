@@ -3,12 +3,12 @@ use actix_web::{
     web::{Data, Form, Path},
     Error, HttpResponse,
 };
-use actix_web_flash_messages::{IncomingFlashMessages, FlashMessage};
+use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use askama::Template;
 use derive_more::{Display, Error};
 use serde::Deserialize;
 
-use crate::queues::{AnswerQuestion, NextAnswer, Queue};
+use crate::queues::{AnswerQuestion, Queue, WideAnswer};
 use crate::types::{AppState, CurrentPage, Message};
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -27,7 +27,8 @@ struct Show<'a> {
     queue: &'a Queue,
     messages: &'a Vec<Message>,
     page: CurrentPage,
-    next_answer: &'a Option<NextAnswer>,
+    next_answer: Option<WideAnswer>,
+    recent_answers: Option<Vec<WideAnswer>>,
 }
 
 #[derive(Template)]
@@ -72,21 +73,35 @@ async fn show(
         .map_err(|error| ShowError {
             message: format!("Problem fetching question: {}", error),
         })?;
-    let answer;
+    let (next_answer, recent_answers);
 
     let s = match result {
         Some(queue) => {
-            answer = queue
+            next_answer = queue
                 .next_answer(&state.db)
                 .await
                 .map_err(|error| ShowError {
                     message: format!("Problem fetching next answer: {}", error),
                 })?;
+            recent_answers = match &next_answer {
+                Some(answer) => {
+                    let results =
+                        answer
+                            .recent_answers(&state.db)
+                            .await
+                            .map_err(|error| ShowError {
+                                message: format!("Problem fetching recent answers: {}", error),
+                            })?;
+                    Some(results)
+                }
+                None => None,
+            };
             Show {
                 queue: &queue,
                 messages,
                 page: page(),
-                next_answer: &answer,
+                next_answer: next_answer,
+                recent_answers: recent_answers,
             }
         }
         .render()
@@ -162,7 +177,12 @@ async fn answer_question(
     info!("Updating answer {} to state {}", answer_id, state_name);
     queue
         .answer_question(
-            AnswerQuestion { answer_id, state: state_name },
+            AnswerQuestion {
+                answer_id,
+                state: state_name,
+                user_id: queue.user_id.clone(),
+                queue_id: queue_id.clone(),
+            },
             &state.db,
         )
         .await

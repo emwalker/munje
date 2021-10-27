@@ -281,7 +281,7 @@ impl WideAnswer {
                 a.updated_at answer_updated_at
              from answers a
              join questions q on a.question_id = q.id
-             where a.queue_id = $1 order by a.created_at desc limit 20",
+             where a.queue_id = $1 order by a.created_at desc limit 6",
             self.queue_id
         )
         .fetch_all(db)

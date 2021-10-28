@@ -7,6 +7,10 @@ use timeago::Formatter;
 use uuid::Uuid;
 
 use crate::questions::Question;
+use crate::queues::{
+    choosers,
+    choosers::{Choice, Strategy},
+};
 use crate::types::Pool;
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
@@ -37,7 +41,7 @@ pub struct Answer {
     pub question_id: String,
     pub state: String,
     pub created_at: String,
-    pub updated_at: String,
+    pub answered_at: Option<String>,
 }
 
 pub struct CreateAnswer {
@@ -50,7 +54,7 @@ pub struct CreateAnswer {
 pub struct WideAnswer {
     pub answer_id: String,
     pub answer_state: String,
-    pub answer_updated_at: String,
+    pub answer_answered_at: Option<String>,
     pub question_title: String,
     pub question_text: String,
     pub question_link: Option<String>,
@@ -159,7 +163,7 @@ impl Queue {
             select
                 a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
                 q.text question_text, q.link question_link,
-                a.queue_id, a.updated_at answer_updated_at
+                a.queue_id, a.answered_at answer_answered_at
             from answers a
             join questions q on a.question_id = q.id
             where a.queue_id = $1 and a.state = 'unstarted'
@@ -178,23 +182,29 @@ impl Queue {
             .await?
             .expect("expected an answer");
 
-        let next_question_id = sqlx::query!(
-            "select id from questions where id <> $1 order by random() limit 1",
+        let possible_choices = sqlx::query_as!(
+            Choice,
+            "select distinct q.id question_id, a.state, a.answered_at
+             from questions q
+             left join answers a on q.id = a.question_id
+             where q.id <> $1
+             limit 20",
             answer.question_id,
         )
-        .fetch_one(db)
-        .await
-        .map(|rec| rec.id)?;
-
-        Answer::create(
-            CreateAnswer {
-                user_id: answer.user_id.clone(),
-                queue_id: answer.queue_id.clone(),
-                question_id: next_question_id,
-            },
-            db,
-        )
+        .fetch_all(db)
         .await?;
+
+        for choice in choosers::Random::new(possible_choices).take(1) {
+            Answer::create(
+                CreateAnswer {
+                    user_id: answer.user_id.clone(),
+                    queue_id: answer.queue_id.clone(),
+                    question_id: choice.question_id.to_string(),
+                },
+                db,
+            )
+            .await?;
+        }
 
         Ok(())
     }
@@ -217,15 +227,14 @@ impl Answer {
         sqlx::query!(
             r#"
             insert into answers
-                (id, user_id, queue_id, question_id, state, created_at, updated_at)
-                values ($1, $2, $3, $4, $5, $6, $7)
+                (id, user_id, queue_id, question_id, state, created_at)
+                values ($1, $2, $3, $4, $5, $6)
             "#,
             id,
             answer.user_id,
             answer.queue_id,
             answer.question_id,
             state,
-            timestamp,
             timestamp,
         )
         .execute(db)
@@ -238,14 +247,14 @@ impl Answer {
             question_id: answer.question_id,
             state: state.to_string(),
             created_at: timestamp.clone(),
-            updated_at: timestamp,
+            answered_at: None,
         })
     }
 
     pub async fn update_state(answer_id: String, state: String, db: &Pool) -> Result<()> {
         let (_id, timestamp) = Self::id_and_timestamp();
         sqlx::query!(
-            "update answers set state = $1, updated_at = $2 where id = $3",
+            "update answers set state = $1, answered_at = $2 where id = $3",
             state,
             timestamp,
             answer_id,
@@ -278,7 +287,7 @@ impl WideAnswer {
             "select
                 a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
                 q.text question_text, q.link question_link, a.queue_id,
-                a.updated_at answer_updated_at
+                a.answered_at answer_answered_at
              from answers a
              join questions q on a.question_id = q.id
              where a.queue_id = $1 order by a.created_at desc limit 6",
@@ -311,10 +320,16 @@ impl WideAnswer {
     }
 
     pub fn timeago(&self) -> Result<String> {
-        let formatter = Formatter::new();
-        let dt1 = DateTime::parse_from_rfc3339(&self.answer_updated_at)?;
-        let dt2 = Utc::now();
-        let duration = dt2.signed_duration_since(dt1).to_std()?;
-        Ok(formatter.convert(duration))
+        let s = match &self.answer_answered_at {
+            Some(answered_at) => {
+                let formatter = Formatter::new();
+                let dt1 = DateTime::parse_from_rfc3339(&answered_at)?;
+                let dt2 = Utc::now();
+                let duration = dt2.signed_duration_since(dt1).to_std()?;
+                formatter.convert(duration)
+            }
+            None => "coming up".to_string(),
+        };
+        Ok(s)
     }
 }

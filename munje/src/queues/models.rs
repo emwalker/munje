@@ -63,10 +63,22 @@ pub struct WideAnswer {
 }
 
 pub struct AnswerQuestion {
-    pub answer_id: String,
     pub user_id: String,
+    pub answer_id: String,
     pub queue_id: String,
     pub state: String,
+}
+
+pub struct LastAnswer {
+    pub user_id: String,
+    pub question_id: String,
+    pub queue_id: String,
+    pub answer_id: String,
+    pub answer_state: String,
+    pub answered_at: String,
+    pub consecutive_correct_answers: u16,
+    pub answer_stage: u32,
+    pub created_at: String,
 }
 
 trait Creatable {

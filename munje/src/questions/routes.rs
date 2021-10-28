@@ -251,6 +251,7 @@ struct StartQueueError {
 
 impl error::ResponseError for StartQueueError {
     fn error_response(&self) -> HttpResponse {
+        error!("There was a problem: {}", self.message);
         FlashMessage::warning(self.message.clone()).send();
         HttpResponse::SeeOther()
             .append_header((http::header::LOCATION, "/questions"))
@@ -278,7 +279,7 @@ async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpRe
     let redirect = HttpResponse::SeeOther()
         .append_header((
             http::header::LOCATION,
-            format!("/queues/{}", result.queue.id),
+            format!("/queues/{}", result.record.id),
         ))
         .finish();
     Ok(redirect)

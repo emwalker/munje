@@ -3,8 +3,8 @@ use rand::{thread_rng, Rng};
 
 pub struct Choice {
     pub question_id: String,
-    pub state: Option<String>,
-    pub answered_at: Option<String>,
+    pub answer_state: Option<String>,
+    pub answer_answered_at: Option<String>,
     // level: 1, 2, 4, 8, 16, ...,
     // last_seen: Duration,
 }
@@ -14,16 +14,16 @@ impl Choice {
     pub fn new(question_id: &str, state: &str) -> Self {
         Self {
             question_id: question_id.to_string(),
-            state: Some(state.to_string()),
-            answered_at: None,
+            answer_state: Some(state.to_string()),
+            answer_answered_at: None,
         }
     }
 
     fn clone(&self) -> Self {
         Self {
+            answer_answered_at: self.answer_answered_at.clone(),
             question_id: self.question_id.clone(),
-            state: self.state.clone(),
-            answered_at: self.answered_at.clone(),
+            answer_state: self.answer_state.clone(),
         }
     }
 

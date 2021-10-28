@@ -27,8 +27,8 @@ struct Show<'a> {
     queue: &'a Queue,
     messages: &'a Vec<Message>,
     page: CurrentPage,
-    next_answer: Option<WideAnswer>,
-    recent_answers: Option<Vec<WideAnswer>>,
+    next_answer: WideAnswer,
+    recent_answers: Vec<WideAnswer>,
 }
 
 #[derive(Template)]
@@ -68,51 +68,35 @@ async fn show(
 ) -> Result<HttpResponse, Error> {
     let id = path.into_inner();
     let messages = &Message::to_messages(&messages);
-    let result = Queue::find_by_id(&id, &state.db)
+    let queue = Queue::find_by_id(&id, &state.db)
         .await
         .map_err(|error| ShowError {
             message: format!("Problem fetching question: {}", error),
         })?;
-    let (next_answer, recent_answers);
 
-    let s = match result {
-        Some(queue) => {
-            next_answer = queue
-                .next_answer(&state.db)
-                .await
-                .map_err(|error| ShowError {
-                    message: format!("Problem fetching next answer: {}", error),
-                })?;
-            recent_answers = match &next_answer {
-                Some(answer) => {
-                    let results =
-                        answer
-                            .recent_answers(&state.db)
-                            .await
-                            .map_err(|error| ShowError {
-                                message: format!("Problem fetching recent answers: {}", error),
-                            })?;
-                    Some(results)
-                }
-                None => None,
-            };
-            Show {
-                queue: &queue,
-                messages,
-                page: page(),
-                next_answer: next_answer,
-                recent_answers: recent_answers,
-            }
-        }
-        .render()
-        .unwrap(),
-        None => NotFound {
-            messages,
-            page: page(),
-        }
-        .render()
-        .unwrap(),
-    };
+    let next_answer = queue
+        .next_answer(&state.db)
+        .await
+        .map_err(|error| ShowError {
+            message: format!("Problem fetching next answer: {}", error),
+        })?;
+
+    let recent_answers = next_answer
+        .recent_answers(&state.db)
+        .await
+        .map_err(|error| ShowError {
+            message: format!("Problem fetching recent answers: {}", error),
+        })?;
+
+    let s = Show {
+        queue: &queue,
+        messages,
+        page: page(),
+        next_answer: next_answer,
+        recent_answers: recent_answers,
+    }
+    .render()
+    .unwrap();
 
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
@@ -148,6 +132,7 @@ struct AnswerQuestionError {
 
 impl error::ResponseError for AnswerQuestionError {
     fn error_response(&self) -> HttpResponse {
+        error!("{}", self.message);
         FlashMessage::error(self.message.clone()).send();
         HttpResponse::SeeOther()
             .append_header((http::header::LOCATION, format!("/queues/{}", self.queue_id)))
@@ -170,8 +155,7 @@ async fn answer_question(
         .map_err(|error| AnswerQuestionError {
             message: format!("Problem fetching question: {}", error),
             queue_id: queue_id.clone(),
-        })?
-        .unwrap();
+        })?;
     let state_name = form.translated_state(queue_id.clone())?;
 
     info!("Updating answer {} to state {}", answer_id, state_name);

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use actix_http::Request;
 use actix_web::cookie::Key;
 use actix_web::dev::Service;
 use actix_web::{cookie, http, test, web, App};
@@ -45,6 +46,10 @@ impl<'a> Matches<'a> {
 
     pub fn exists(&mut self) -> bool {
         self.matches.iter().next() != None
+    }
+
+    pub fn none(&mut self) -> bool {
+        !self.exists()
     }
 }
 
@@ -134,7 +139,7 @@ impl Runner {
         })
     }
 
-    pub async fn post(&self, path: &str) -> Result<HttpResult, Error> {
+    pub async fn post(&self, req: Request) -> Result<HttpResult, Error> {
         let message_store = CookieMessageStore::builder(self.signing_key.clone()).build();
         let message_framework = FlashMessagesFramework::builder(message_store).build();
 
@@ -143,13 +148,10 @@ impl Runner {
                 db: self.db.clone(),
             }))
             .wrap(message_framework.clone())
-            .configure(questions::routes::register);
-        let app = test::init_service(app).await;
-        let req = test::TestRequest::post()
-            .uri(path)
-            .append_header(("Content-type", "application/x-www-form-urlencoded"))
-            .to_request();
+            .configure(questions::routes::register)
+            .configure(queues::routes::register);
 
+        let app = test::init_service(app).await;
         let resp = app.call(req).await.unwrap();
         Ok(HttpResult {
             doc: Document::from(""),

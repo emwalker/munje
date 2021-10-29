@@ -5,30 +5,43 @@
 
   <div>
     <div class="card">
-      <div class="card-header-title">{{ next_answer.question_title }}</div>
-      <div class="card-content">
-        <div class="markdown-body mb-5">
-          {{ next_answer.markdown()|safe }}
+      {% match next_question.question %}
+
+        {% when Some with (question) %}
+          <div class="card-header-title">{{ question.title }}</div>
+          <div class="card-content" data-next-question-id="{{ question.id }}">
+            <div class="markdown-body mb-5">
+              {{ question.markdown()|safe }}
+            </div>
+            <form method="POST" class="has-text-centered"
+              action="/queues/{{ queue.id }}/questions/{{ question.id }}"
+            >
+              <input class="button is-success is-medium is-light mr-6"
+                type="submit" name="state" value="Correct" />
+              <input class="button is-danger is-medium is-light mr-6"
+                type="submit" name="state" value="Incorrect" />
+              <input class="button is-info is-medium is-light"
+                type="submit" name="state" value="Too hard" />
+            </form>
+          </div>
         </div>
-        <form method="POST" class="has-text-centered"
-          action="/queues/{{ queue.id }}/answers/{{ next_answer.answer_id }}"
-        >
-          <input class="button is-success is-medium is-light mr-6"
-            type="submit" name="state" value="Correct" />
-          <input class="button is-danger is-medium is-light mr-6"
-            type="submit" name="state" value="Incorrect" />
-          <input class="button is-info is-medium is-light"
-            type="submit" name="state" value="Too hard" />
-        </form>
-      </div>
-    </div>
+
+      {% else %}
+        <div class="card-header-title">No questions at this time</div>
+        <div class="card-content">
+          No question in this queue is ready to work on at this time.  A new question will become
+          available in {{ next_question.timeto() }}.  In the meantime, perhaps you might want
+          to add some questions of your own.
+        </div>
+
+    {% endmatch %}
   </div>
 
   <h3 class="subtitle mt-6">Recent answers</h3>
   <table class="table is-striped is-hoverable is-fullwidth">
     <tbody>
       {% for answer in recent_answers %}
-        <tr>
+        <tr data-answer-id="{{ answer.answer_id }}">
           <td>{{ answer.question_title }}</td>
           <td class="has-text-centered">
             <span class="tag is-light {{ answer.tag_class() }}">

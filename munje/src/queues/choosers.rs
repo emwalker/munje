@@ -33,6 +33,7 @@ impl Choice {
 
 pub trait Strategy {
     fn take(&self, n: u64) -> Vec<Choice>;
+    fn next_question(&self) -> (Option<Choice>, String);
 }
 
 pub struct Random {
@@ -56,6 +57,12 @@ impl Strategy for Random {
             selected.push(self.choices[j].clone());
         }
         selected
+    }
+
+    fn next_question(&self) -> (Option<Choice>, String) {
+        let choices = self.take(1);
+        let choice = choices.iter().next();
+        (choice.map(Choice::clone), "20 minutes".to_string())
     }
 }
 

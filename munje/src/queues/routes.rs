@@ -6,9 +6,9 @@ use actix_web::{
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use askama::Template;
 use derive_more::{Display, Error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::queues::{AnswerQuestion, Queue, WideAnswer};
+use crate::queues::{AnswerQuestion, NextQuestion, Queue, WideAnswer};
 use crate::types::{AppState, CurrentPage, Message};
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -27,7 +27,7 @@ struct Show<'a> {
     queue: &'a Queue,
     messages: &'a Vec<Message>,
     page: CurrentPage,
-    next_answer: WideAnswer,
+    next_question: NextQuestion,
     recent_answers: Vec<WideAnswer>,
 }
 
@@ -69,20 +69,20 @@ async fn show(
     let id = path.into_inner();
     let messages = &Message::to_messages(&messages);
 
-    let queue = Queue::find_by_id(&id, &state.db)
+    let queue = &Queue::find_by_id(&id, &state.db)
         .await
         .map_err(|error| ShowError {
-            message: format!("Problem fetching question: {}", error),
+            message: format!("Problem fetching queue: {}", error),
         })?;
 
-    let next_answer = queue
-        .next_answer(&state.db)
+    let next_question = queue
+        .next_question(&state.db)
         .await
         .map_err(|error| ShowError {
-            message: format!("Problem fetching next answer: {}", error),
+            message: format!("Problem fetching next question: {}", error),
         })?;
 
-    let recent_answers = next_answer
+    let recent_answers = queue
         .recent_answers(&state.db)
         .await
         .map_err(|error| ShowError {
@@ -90,11 +90,11 @@ async fn show(
         })?;
 
     let s = Show {
-        queue: &queue,
+        queue,
         messages,
         page: page(),
-        next_answer: next_answer,
-        recent_answers: recent_answers,
+        next_question,
+        recent_answers,
     }
     .render()
     .unwrap();
@@ -102,9 +102,9 @@ async fn show(
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
-#[derive(Deserialize)]
-struct AnswerQuestionForm {
-    state: String,
+#[derive(Serialize, Deserialize)]
+pub struct AnswerQuestionForm {
+    pub state: String,
 }
 
 impl AnswerQuestionForm {
@@ -141,13 +141,13 @@ impl error::ResponseError for AnswerQuestionError {
     }
 }
 
-#[post("/queues/{id}/answers/{answer_id}")]
+#[post("/queues/{id}/questions/{question_id}")]
 async fn answer_question(
     state: Data<AppState>,
     path: Path<(String, String)>,
     form: Form<AnswerQuestionForm>,
 ) -> Result<HttpResponse, Error> {
-    let (queue_id, answer_id) = path.into_inner();
+    let (queue_id, question_id) = path.into_inner();
     let state = state.into_inner();
     let form = form.into_inner();
 
@@ -159,11 +159,11 @@ async fn answer_question(
         })?;
     let state_name = form.translated_state(queue_id.clone())?;
 
-    info!("Updating answer {} to state {}", answer_id, state_name);
+    info!(r#"Answering question {} as "{}"#, question_id, state_name);
     queue
         .answer_question(
             AnswerQuestion {
-                answer_id,
+                question_id,
                 state: state_name,
                 user_id: queue.user_id.clone(),
                 queue_id: queue_id.clone(),

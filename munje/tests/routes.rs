@@ -1,8 +1,9 @@
 mod support;
 
-use actix_web::http;
+use actix_web::{http, test, web};
 use munje::{
     questions::{CreateQuestion, Question},
+    queues::routes::AnswerQuestionForm,
     queues::{CreateQueue, Queue},
 };
 
@@ -76,11 +77,15 @@ async fn start_queue() -> TestResult {
         link: "some-link".to_string(),
         link_logo: Some("logo-url".to_string()),
     };
-    let question = Question::create(question, &runner.db).await?;
-    let path = format!("/questions/{}/queues", question.id);
-    let res = runner.post(&path).await?;
-    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
 
+    let question = Question::create(question, &runner.db).await?;
+    let req = test::TestRequest::post()
+        .uri(format!("/questions/{}/queues", question.id).as_ref())
+        .append_header(("Content-type", "application/x-www-form-urlencoded"))
+        .to_request();
+    let res = runner.post(req).await?;
+
+    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
     Ok(())
 }
 
@@ -109,11 +114,49 @@ async fn show_queue() -> TestResult {
     .await?
     .record;
 
-    // We should see a next question
     let path = format!("/queues/{}", queue.id);
     let res = runner.get(&path).await?;
     assert_eq!(res.status, http::StatusCode::OK);
-    assert!(res.doc.css(".card-header-title")?.exists());
+    assert!(res.doc.css(".card")?.exists());
+    Ok(())
+}
 
+#[actix_rt::test]
+async fn answer_question() -> TestResult {
+    let runner = Runner::new().await;
+
+    let question = Question::create(
+        CreateQuestion {
+            author_id: runner.user.id.to_string(),
+            title: "some-title".to_string(),
+            link: "some-link".to_string(),
+            link_logo: Some("logo-url".to_string()),
+        },
+        &runner.db,
+    )
+    .await?;
+
+    let queue = Queue::find_or_create(
+        CreateQueue {
+            user_id: runner.user.id.to_string(),
+            starting_question_id: question.id.clone(),
+        },
+        &runner.db,
+    )
+    .await?
+    .record;
+
+    let form = web::Form(AnswerQuestionForm {
+        state: "Correct".to_string(),
+    });
+
+    let req = test::TestRequest::post()
+        .uri(format!("/queues/{}/questions/{}", queue.id, question.id).as_ref())
+        .append_header(("Content-type", "application/x-www-form-urlencoded"))
+        .set_form(&form)
+        .to_request();
+    let res = runner.post(req).await?;
+
+    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
     Ok(())
 }

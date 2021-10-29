@@ -1,6 +1,5 @@
 use anyhow::{bail, Error, Result};
 use chrono::{prelude::*, DateTime};
-use comrak::{markdown_to_html, ComrakOptions};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::convert::TryFrom;
@@ -32,6 +31,11 @@ pub struct Queue {
 pub struct UpsertResult<T> {
     pub record: T,
     pub created: bool,
+}
+
+pub struct NextQuestion {
+    pub question: Option<Question>,
+    next_available_at: String,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -68,10 +72,10 @@ pub struct WideAnswer {
 }
 
 pub struct AnswerQuestion {
-    pub user_id: String,
+    pub question_id: String,
     pub queue_id: String,
-    pub answer_id: String,
     pub state: String,
+    pub user_id: String,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -126,16 +130,6 @@ impl Queue {
         .execute(db)
         .await?;
 
-        Answer::add_to_queue(
-            QueueAnswer {
-                user_id: queue.user_id.clone(),
-                queue_id: id.clone(),
-                question_id: queue.starting_question_id.clone(),
-            },
-            db,
-        )
-        .await?;
-
         Ok(Self {
             id,
             user_id: queue.user_id.clone(),
@@ -183,23 +177,39 @@ impl Queue {
         Ok(answers)
     }
 
-    pub async fn next_answer(&self, db: &Pool) -> Result<WideAnswer> {
-        let result = sqlx::query_as!(
-            WideAnswer,
-            "select
-                 a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
-                 q.text question_text, q.link question_link, a.queue_id,
-                 a.answered_at answer_answered_at, a.stage answer_stage,
-                 a.consecutive_correct answer_consecutive_correct
-             from answers a
-             join questions q on a.question_id = q.id
-             where a.queue_id = $1 and a.state = 'unstarted'
-             limit 1",
-            self.id
+    pub async fn next_question(&self, db: &Pool) -> Result<NextQuestion> {
+        let choices = sqlx::query_as!(
+            Choice,
+            "select q.id question_id, la.answer_state, la.answer_answered_at
+             from questions q
+             left join last_answers la on q.id = la.question_id
+             where (la.user_id = $1 or la.user_id is null)
+             limit 100",
+            self.user_id,
         )
-        .fetch_one(db)
+        .fetch_all(db)
         .await?;
-        Ok(result)
+
+        if choices.len() < 1 {
+            bail!("No possible choices found for queue {:?}", self);
+        }
+
+        let (result, next_available_at) = choosers::Random::new(choices).next_question();
+        let next_question = match result {
+            Some(choice) => {
+                let question = Question::find_by_id(choice.question_id.to_string(), db).await?;
+                NextQuestion {
+                    question,
+                    next_available_at,
+                }
+            }
+            None => NextQuestion {
+                question: None,
+                next_available_at,
+            },
+        };
+
+        Ok(next_question)
     }
 
     pub async fn answer_question(
@@ -208,57 +218,47 @@ impl Queue {
         db: &Pool,
     ) -> Result<(), Error> {
         let (_id, timestamp) = Self::id_and_timestamp();
-        let answer = LastAnswer::find_by_answer_id(answer_question.answer_id.clone(), db).await?;
 
+        let answer = Answer::create_from(&answer_question, db).await?;
+        let last_answer = LastAnswer::find_or_create(&answer, db).await?.record;
         let consecutive_correct = match answer_question.state.as_ref() {
-            "correct" => answer.answer_consecutive_correct + 1,
+            "correct" => last_answer.answer_consecutive_correct + 1,
             _ => 0,
         };
         let base: i64 = 2;
         let stage = base.pow(u32::try_from(consecutive_correct)?);
 
-        let answer = Answer::finalize(
-            answer_question.answer_id,
-            answer_question.state.clone(),
-            timestamp,
-            consecutive_correct,
-            stage,
-            db,
-        )
-        .await?;
-
-        LastAnswer::upsert(&answer, db).await?;
-
-        let possible_choices = sqlx::query_as!(
-            Choice,
-            "select distinct q.id question_id, a.answer_state, a.answer_answered_at
-             from questions q
-             left join last_answers a on q.id = a.question_id
-             where q.id <> $1 and (a.user_id = $2 or a.user_id is null)
-             limit 20",
-            answer.question_id,
-            answer.user_id,
-        )
-        .fetch_all(db)
-        .await?;
-
-        if possible_choices.len() < 1 {
-            bail!("No choices found after answering {}", answer.id)
-        }
-
-        for choice in choosers::Random::new(possible_choices).take(1) {
-            Answer::add_to_queue(
-                QueueAnswer {
-                    user_id: answer.user_id.clone(),
-                    queue_id: answer.queue_id.clone(),
-                    question_id: choice.question_id.to_string(),
-                },
+        let answer = answer
+            .finalize(
+                answer_question.state.clone(),
+                timestamp,
+                consecutive_correct,
+                stage,
                 db,
             )
             .await?;
-        }
+        last_answer.update(&answer, db).await?;
 
         Ok(())
+    }
+
+    pub async fn recent_answers(&self, db: &Pool) -> Result<Vec<WideAnswer>> {
+        let answers = sqlx::query_as!(
+            WideAnswer,
+            "select
+                a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
+                q.text question_text, q.link question_link, a.queue_id,
+                a.answered_at answer_answered_at,
+                a.consecutive_correct answer_consecutive_correct,
+                a.stage answer_stage
+             from answers a
+             join questions q on a.question_id = q.id
+             where a.queue_id = $1 order by a.created_at desc limit 6",
+            self.id
+        )
+        .fetch_all(db)
+        .await?;
+        Ok(answers)
     }
 }
 
@@ -272,7 +272,7 @@ impl Answer {
         Ok(answer)
     }
 
-    async fn add_to_queue(answer: QueueAnswer, db: &Pool) -> Result<Answer> {
+    pub async fn create_from(answer: &AnswerQuestion, db: &Pool) -> Result<Self> {
         let (id, timestamp) = Self::id_and_timestamp();
         let state = "unstarted";
 
@@ -290,24 +290,21 @@ impl Answer {
         .execute(db)
         .await?;
 
-        let answer = Self {
+        Ok(Self {
             answered_at: None,
             consecutive_correct: None,
             created_at: timestamp.clone(),
             id,
-            question_id: answer.question_id,
-            queue_id: answer.queue_id,
+            question_id: answer.question_id.clone(),
+            queue_id: answer.queue_id.clone(),
             stage: None,
             state: state.to_string(),
-            user_id: answer.user_id,
-        };
-        LastAnswer::upsert(&answer, db).await?;
-
-        Ok(answer)
+            user_id: answer.user_id.clone(),
+        })
     }
 
     pub async fn finalize(
-        answer_id: String,
+        &self,
         state: String,
         answered_at: String,
         consecutive_correct: i64,
@@ -325,12 +322,12 @@ impl Answer {
             answered_at,
             consecutive_correct,
             stage,
-            answer_id,
+            self.id,
         )
         .execute(db)
         .await?;
 
-        Ok(Self::find_by_id(answer_id, db).await?.unwrap())
+        Ok(Self::find_by_id(self.id.clone(), db).await?.unwrap())
     }
 
     pub async fn question(&self, db: &Pool) -> Result<Question> {
@@ -345,30 +342,13 @@ impl Answer {
     }
 }
 
+impl NextQuestion {
+    pub fn timeto(&self) -> String {
+        self.next_available_at.clone()
+    }
+}
+
 impl WideAnswer {
-    pub fn markdown(&self) -> String {
-        markdown_to_html(&self.question_text, &ComrakOptions::default())
-    }
-
-    pub async fn recent_answers(&self, db: &Pool) -> Result<Vec<WideAnswer>> {
-        let answers = sqlx::query_as!(
-            WideAnswer,
-            "select
-                a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
-                q.text question_text, q.link question_link, a.queue_id,
-                a.answered_at answer_answered_at,
-                a.consecutive_correct answer_consecutive_correct,
-                a.stage answer_stage
-             from answers a
-             join questions q on a.question_id = q.id
-             where a.queue_id = $1 order by a.created_at desc limit 6",
-            self.queue_id
-        )
-        .fetch_all(db)
-        .await?;
-        Ok(answers)
-    }
-
     pub fn tag_class(&self) -> String {
         match self.answer_state.as_ref() {
             "unsure" => "is-info",
@@ -408,18 +388,7 @@ impl WideAnswer {
 impl Creatable for LastAnswer {}
 
 impl LastAnswer {
-    pub async fn find_by_answer_id(answer_id: String, db: &Pool) -> Result<Self> {
-        let answer = sqlx::query_as!(
-            Self,
-            "select * from last_answers where answer_id = $1",
-            answer_id
-        )
-        .fetch_one(db)
-        .await?;
-        Ok(answer)
-    }
-
-    async fn upsert(answer: &Answer, db: &Pool) -> Result<UpsertResult<Self>, Error> {
+    async fn find_or_create(answer: &Answer, db: &Pool) -> Result<UpsertResult<Self>, Error> {
         let result = sqlx::query_as!(
             Self,
             "select * from last_answers
@@ -435,14 +404,10 @@ impl LastAnswer {
         .await?;
 
         let upsert_result = match result {
-            Some(last_answer) => {
-                last_answer.update(answer, db).await?;
-
-                UpsertResult {
-                    record: last_answer,
-                    created: false,
-                }
-            }
+            Some(last_answer) => UpsertResult {
+                record: last_answer,
+                created: false,
+            },
             None => UpsertResult {
                 record: Self::create_from(answer, db).await?,
                 created: true,

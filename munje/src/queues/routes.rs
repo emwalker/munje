@@ -68,6 +68,7 @@ async fn show(
 ) -> Result<HttpResponse, Error> {
     let id = path.into_inner();
     let messages = &Message::to_messages(&messages);
+
     let queue = Queue::find_by_id(&id, &state.db)
         .await
         .map_err(|error| ShowError {

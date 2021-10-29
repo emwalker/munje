@@ -1,63 +1,62 @@
 mod support;
 
+use actix_web::http;
 use munje::{
-    questions,
     questions::{CreateQuestion, Question},
-    routes,
+    queues::{CreateQueue, Queue},
 };
 
 use crate::support::{Runner, TestResult};
 
 #[actix_rt::test]
-async fn test_home() -> TestResult {
-    let doc = Runner::new().await.get(routes::home, "/").await?;
-    assert_eq!("Munje", doc.select_text("p.title").unwrap());
+async fn home() -> TestResult {
+    let res = Runner::new().await.get("/").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!("Munje", res.doc.select_text("p.title").unwrap());
     Ok(())
 }
 
 #[actix_rt::test]
-async fn test_list() -> TestResult {
-    let doc = Runner::new()
-        .await
-        .get(questions::routes::list, "/questions")
-        .await?;
-    assert_eq!("Questions", doc.select_text("h2").unwrap());
+async fn list_questions() -> TestResult {
+    let res = Runner::new().await.get("/questions").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!("Questions", res.doc.select_text("h2").unwrap());
     Ok(())
 }
 
 #[actix_rt::test]
-async fn new() -> TestResult {
-    let doc = Runner::new()
-        .await
-        .get(questions::routes::show_or_new, "/questions/new")
-        .await?;
-    assert_eq!("Add a question", doc.select_text("h2").unwrap());
+async fn new_question() -> TestResult {
+    let res = Runner::new().await.get("/questions/new").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!("Add a question", res.doc.select_text("h2").unwrap());
     Ok(())
 }
 
 #[actix_rt::test]
-async fn unknown() -> TestResult {
-    let doc = Runner::new()
-        .await
-        .get(questions::routes::show_or_new, "/questions/unknown")
-        .await?;
-    let title = doc.select_text("title").unwrap();
+async fn show_unknown_question() -> TestResult {
+    let res = Runner::new().await.get("/questions/unknown").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    let title = res.doc.select_text("title").unwrap();
     assert_eq!("Question not found", title);
     Ok(())
 }
 
 #[actix_rt::test]
-async fn show() -> TestResult {
-    let harness = Runner::new().await;
+async fn show_question() -> TestResult {
+    let runner = Runner::new().await;
     let question = CreateQuestion {
         author_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
         title: "some-title".to_string(),
         link: "some-link".to_string(),
         link_logo: Some("logo-url".to_string()),
     };
-    let question = Question::create(question, &harness.db).await?;
+
+    let question = Question::create(question, &runner.db).await?;
     let path = format!("/questions/{}", question.id);
-    let doc = harness.get(questions::routes::show_or_new, &path).await?;
+    let res = runner.get(&path).await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+
+    let doc = res.doc;
 
     assert_eq!(
         "some-title",
@@ -69,16 +68,52 @@ async fn show() -> TestResult {
 }
 
 #[actix_rt::test]
-async fn test_start_queue() -> TestResult {
-    let harness = Runner::new().await;
+async fn start_queue() -> TestResult {
+    let runner = Runner::new().await;
     let question = CreateQuestion {
         author_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
         title: "some-title".to_string(),
         link: "some-link".to_string(),
         link_logo: Some("logo-url".to_string()),
     };
-    let question = Question::create(question, &harness.db).await?;
+    let question = Question::create(question, &runner.db).await?;
     let path = format!("/questions/{}/queues", question.id);
-    harness.post(questions::routes::start_queue, &path).await?;
+    let res = runner.post(&path).await?;
+    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
+
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn show_queue() -> TestResult {
+    let runner = Runner::new().await;
+
+    let question = Question::create(
+        CreateQuestion {
+            author_id: runner.user.id.to_string(),
+            title: "some-title".to_string(),
+            link: "some-link".to_string(),
+            link_logo: Some("logo-url".to_string()),
+        },
+        &runner.db,
+    )
+    .await?;
+
+    let queue = Queue::find_or_create(
+        CreateQueue {
+            user_id: runner.user.id.to_string(),
+            starting_question_id: question.id,
+        },
+        &runner.db,
+    )
+    .await?
+    .record;
+
+    // We should see a next question
+    let path = format!("/queues/{}", queue.id);
+    let res = runner.get(&path).await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert!(res.doc.css(".card-header-title")?.exists());
+
     Ok(())
 }

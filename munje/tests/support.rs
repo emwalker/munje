@@ -1,12 +1,15 @@
 #![allow(dead_code)]
 
 use actix_web::cookie::Key;
-use actix_web::dev::{HttpServiceFactory, Service};
+use actix_web::dev::Service;
 use actix_web::{cookie, http, test, web, App};
 use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
 use anyhow::Error;
 use anyhow::Result;
-use munje::types::{AppState, Pool};
+use munje::{
+    questions, queues, routes,
+    types::{AppState, Pool},
+};
 use scraper::{ElementRef, Html, Selector};
 use sqlx::sqlite::SqlitePoolOptions;
 use std::str;
@@ -19,9 +22,15 @@ fn init() {
 
 pub type TestResult = Result<(), Error>;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Document {
+    source: String,
     doc: Html,
+}
+
+pub struct HttpResult {
+    pub doc: Document,
+    pub status: http::StatusCode,
 }
 
 pub struct Matches<'a> {
@@ -42,8 +51,13 @@ impl<'a> Matches<'a> {
 impl Document {
     fn from(html: &str) -> Self {
         Self {
+            source: html.to_string(),
             doc: Html::parse_document(html),
         }
+    }
+
+    pub fn to_string(&self) -> String {
+        self.source.to_string()
     }
 
     pub fn select_text(&self, selector: &str) -> Option<String> {
@@ -62,8 +76,13 @@ impl Document {
     }
 }
 
+pub struct User {
+    pub id: String,
+}
+
 pub struct Runner {
     pub db: Pool,
+    pub user: User,
     signing_key: cookie::Key,
 }
 
@@ -71,19 +90,21 @@ impl Runner {
     pub async fn new() -> Self {
         let signing_key = Key::generate(); // This will usually come from configuration!
 
+        let user = User {
+            id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        };
+
         match Self::fetch_db().await {
             Ok(db) => Runner {
                 db: db,
+                user: user,
                 signing_key,
             },
             Err(err) => panic!("There was a problem: {}", err),
         }
     }
 
-    pub async fn get<F>(&self, factory: F, path: &str) -> Result<Document, Error>
-    where
-        F: HttpServiceFactory + 'static,
-    {
+    pub async fn get(&self, path: &str) -> Result<HttpResult, Error> {
         let message_store = CookieMessageStore::builder(self.signing_key.clone()).build();
         let message_framework = FlashMessagesFramework::builder(message_store).build();
 
@@ -92,27 +113,28 @@ impl Runner {
                 db: self.db.clone(),
             }))
             .wrap(message_framework.clone())
-            .service(factory);
+            .service(routes::home)
+            .configure(questions::routes::register)
+            .configure(queues::routes::register);
         let app = test::init_service(app).await;
 
         let req = test::TestRequest::get().uri(path).to_request();
         let resp = app.call(req).await.unwrap();
 
-        assert_eq!(resp.status(), http::StatusCode::OK);
-
         let body = match resp.response().body() {
             actix_web::body::Body::Bytes(bytes) => bytes,
-            _ => panic!("Response error"),
+            actix_web::body::AnyBody::Empty => "".as_bytes(),
+            other => panic!("Response error: {:?}", other),
         };
-
         let html = str::from_utf8(&body).unwrap();
-        Ok(Document::from(html))
+
+        Ok(HttpResult {
+            doc: Document::from(html),
+            status: resp.status(),
+        })
     }
 
-    pub async fn post<F>(&self, factory: F, path: &str) -> Result<(), Error>
-    where
-        F: HttpServiceFactory + 'static,
-    {
+    pub async fn post(&self, path: &str) -> Result<HttpResult, Error> {
         let message_store = CookieMessageStore::builder(self.signing_key.clone()).build();
         let message_framework = FlashMessagesFramework::builder(message_store).build();
 
@@ -121,7 +143,7 @@ impl Runner {
                 db: self.db.clone(),
             }))
             .wrap(message_framework.clone())
-            .service(factory);
+            .configure(questions::routes::register);
         let app = test::init_service(app).await;
         let req = test::TestRequest::post()
             .uri(path)
@@ -129,9 +151,10 @@ impl Runner {
             .to_request();
 
         let resp = app.call(req).await.unwrap();
-        assert_eq!(http::StatusCode::SEE_OTHER, resp.status());
-
-        Ok(())
+        Ok(HttpResult {
+            doc: Document::from(""),
+            status: resp.status(),
+        })
     }
 
     async fn fetch_db() -> Result<Pool> {

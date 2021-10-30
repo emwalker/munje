@@ -69,7 +69,7 @@ async fn show(
     let id = path.into_inner();
     let messages = &Message::to_messages(&messages);
 
-    let queue = &Queue::find_by_id(&id, &state.db)
+    let queue = &Queue::find(&id, &state.db)
         .await
         .map_err(|error| ShowError {
             message: format!("Problem fetching queue: {}", error),
@@ -151,7 +151,7 @@ async fn answer_question(
     let state = state.into_inner();
     let form = form.into_inner();
 
-    let queue = Queue::find_by_id(&queue_id, &state.db)
+    let queue = Queue::find(&queue_id, &state.db)
         .await
         .map_err(|error| AnswerQuestionError {
             message: format!("Problem fetching question: {}", error),

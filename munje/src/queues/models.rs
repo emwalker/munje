@@ -139,7 +139,7 @@ impl Queue {
         })
     }
 
-    pub async fn find_by_id(id: &str, db: &Pool) -> Result<Self> {
+    pub async fn find(id: &str, db: &Pool) -> Result<Self> {
         let queue = sqlx::query_as!(Self, "select * from queues where id = $1", id)
             .fetch_one(db)
             .await?;

@@ -156,26 +156,18 @@ async fn show_or_new(
             .unwrap()
         }
         _ => {
-            let result = Question::find_by_id(id, &state.db)
+            let question = Question::find(id, &state.db)
                 .await
                 .map_err(|error| ShowError {
                     message: format!("Problem fetching question: {}", error),
                 })?;
-            match result {
-                Some(question) => Show {
-                    question: &question,
-                    messages,
-                    page: page(),
-                }
-                .render()
-                .unwrap(),
-                None => NotFound {
-                    messages,
-                    page: page(),
-                }
-                .render()
-                .unwrap(),
+            Show {
+                question: &question,
+                messages,
+                page: page(),
             }
+            .render()
+            .unwrap()
         }
     };
 

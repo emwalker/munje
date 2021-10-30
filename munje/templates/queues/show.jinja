@@ -30,7 +30,7 @@
         <div class="card-header-title">No questions at this time</div>
         <div class="card-content">
           No question in this queue is ready to work on at this time.  A new question will become
-          available in {{ next_question.timeto() }}.  In the meantime, perhaps you might want
+          available {{ next_question.available_at() }}.  In the meantime, perhaps you might want
           to add some questions of your own.
         </div>
 
@@ -56,12 +56,7 @@
             {% endmatch %}
           </td>
           <td class="has-text-centered">
-            {% match answer.timeago() %}
-              {% when Ok with (ago) %}
-                {{ ago }}
-              {% else %}
-                unknown time ago
-            {% endmatch %}
+            {{ answer.answered_at() }}
           </td>
         </tr>
       {% endfor %}

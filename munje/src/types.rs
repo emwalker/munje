@@ -1,5 +1,8 @@
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages, Level};
+use chrono;
+use chrono_humanize::HumanTime;
 use sqlx::SqlitePool;
+use std::ops::{Add, Sub};
 
 pub type Pool = SqlitePool;
 
@@ -52,5 +55,41 @@ impl CurrentPage {
         } else {
             ""
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+pub struct DateTime(pub chrono::DateTime<chrono::Utc>);
+
+impl DateTime {
+    pub fn from(string: &str) -> Self {
+        let dt = chrono::DateTime::parse_from_rfc3339(string)
+            .map(|dt| chrono::DateTime::from(dt))
+            .unwrap_or(chrono::Utc::now());
+        Self(dt)
+    }
+
+    pub fn now() -> Self {
+        Self(chrono::Utc::now())
+    }
+
+    pub fn humanize(&self) -> String {
+        format!("{}", HumanTime::from(self.0))
+    }
+}
+
+impl Add<chrono::Duration> for DateTime {
+    type Output = Self;
+
+    fn add(self, rhs: chrono::Duration) -> Self {
+        Self(self.0 + rhs)
+    }
+}
+
+impl Sub<DateTime> for DateTime {
+    type Output = chrono::Duration;
+
+    fn sub(self, rhs: DateTime) -> chrono::Duration {
+        self.0 - rhs.0
     }
 }

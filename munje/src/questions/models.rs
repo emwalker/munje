@@ -44,9 +44,9 @@ impl Question {
         Ok(questions)
     }
 
-    pub async fn find_by_id(id: String, db: &Pool) -> Result<Option<Self>> {
+    pub async fn find(id: String, db: &Pool) -> Result<Self> {
         let question = sqlx::query_as!(Self, "select * from questions where id = $1", id)
-            .fetch_optional(db)
+            .fetch_one(db)
             .await?;
         Ok(question)
     }

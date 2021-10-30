@@ -1,17 +1,17 @@
 use anyhow::{bail, Error, Result};
-use chrono::{prelude::*, DateTime};
+use chrono;
+use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use std::convert::TryFrom;
-use timeago::Formatter;
 use uuid::Uuid;
 
 use crate::questions::Question;
 use crate::queues::{
     choosers,
-    choosers::{Choice, Strategy},
+    choosers::{ChoiceRow, Strategy},
 };
-use crate::types::Pool;
+use crate::types::{DateTime, Pool};
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct CreateQueue {
@@ -35,7 +35,7 @@ pub struct UpsertResult<T> {
 
 pub struct NextQuestion {
     pub question: Option<Question>,
-    next_available_at: String,
+    next_available_at: DateTime,
 }
 
 #[derive(Debug, Serialize, FromRow)]
@@ -178,9 +178,11 @@ impl Queue {
     }
 
     pub async fn next_question(&self, db: &Pool) -> Result<NextQuestion> {
+        info!("Selecting next question");
+
         let choices = sqlx::query_as!(
-            Choice,
-            "select q.id question_id, la.answer_state, la.answer_answered_at
+            ChoiceRow,
+            "select q.id question_id, la.answer_stage, la.answer_state, la.answer_answered_at
              from questions q
              left join last_answers la on q.id = la.question_id
              where (la.user_id = $1 or la.user_id is null)
@@ -194,19 +196,29 @@ impl Queue {
             bail!("No possible choices found for queue {:?}", self);
         }
 
-        let (result, next_available_at) = choosers::Random::new(choices).next_question();
-        let next_question = match result {
+        info!("Choosing from choices: {:?}", choices);
+        let (next_choice, next_available_at) =
+            choosers::SpacedRepetition::from_rows(choices, choosers::TimeUnit::Minutes)
+                .next_question()?;
+        // let (result, next_available_at) =
+        //     choosers::Random::from_rows(choices).next_question()?;
+
+        let next_question = match next_choice {
             Some(choice) => {
-                let question = Question::find_by_id(choice.question_id.to_string(), db).await?;
+                let question = Question::find(choice.question_id.to_string(), db).await?;
+                info!("Found a next question: {:?}", question);
                 NextQuestion {
-                    question,
+                    question: Some(question),
                     next_available_at,
                 }
             }
-            None => NextQuestion {
-                question: None,
-                next_available_at,
-            },
+            None => {
+                info!("No question ready to work on");
+                NextQuestion {
+                    question: None,
+                    next_available_at,
+                }
+            }
         };
 
         Ok(next_question)
@@ -265,16 +277,15 @@ impl Queue {
 impl Creatable for Answer {}
 
 impl Answer {
-    pub async fn find_by_id(answer_id: String, db: &Pool) -> Result<Option<Self>> {
+    pub async fn find(answer_id: String, db: &Pool) -> Result<Self> {
         let answer = sqlx::query_as!(Self, "select * from answers where id = $1", answer_id)
-            .fetch_optional(db)
+            .fetch_one(db)
             .await?;
         Ok(answer)
     }
 
     pub async fn create_from(answer: &AnswerQuestion, db: &Pool) -> Result<Self> {
         let (id, timestamp) = Self::id_and_timestamp();
-        let state = "unstarted";
 
         sqlx::query!(
             "insert into answers
@@ -284,7 +295,7 @@ impl Answer {
             answer.user_id,
             answer.queue_id,
             answer.question_id,
-            state,
+            answer.state,
             timestamp,
         )
         .execute(db)
@@ -298,7 +309,7 @@ impl Answer {
             question_id: answer.question_id.clone(),
             queue_id: answer.queue_id.clone(),
             stage: None,
-            state: state.to_string(),
+            state: answer.state.to_string(),
             user_id: answer.user_id.clone(),
         })
     }
@@ -327,7 +338,7 @@ impl Answer {
         .execute(db)
         .await?;
 
-        Ok(Self::find_by_id(self.id.clone(), db).await?.unwrap())
+        Ok(Self::find(self.id.clone(), db).await?)
     }
 
     pub async fn question(&self, db: &Pool) -> Result<Question> {
@@ -343,8 +354,8 @@ impl Answer {
 }
 
 impl NextQuestion {
-    pub fn timeto(&self) -> String {
-        self.next_available_at.clone()
+    pub fn available_at(&self) -> String {
+        self.next_available_at.humanize()
     }
 }
 
@@ -370,18 +381,11 @@ impl WideAnswer {
         .to_string()
     }
 
-    pub fn timeago(&self) -> Result<String> {
-        let s = match &self.answer_answered_at {
-            Some(answered_at) => {
-                let formatter = Formatter::new();
-                let dt1 = DateTime::parse_from_rfc3339(&answered_at)?;
-                let dt2 = Utc::now();
-                let duration = dt2.signed_duration_since(dt1).to_std()?;
-                formatter.convert(duration)
-            }
-            None => "coming up".to_string(),
-        };
-        Ok(s)
+    pub fn answered_at(&self) -> String {
+        self.answer_answered_at
+            .clone()
+            .map(|s| DateTime::from(&s).humanize())
+            .unwrap_or("now".to_string())
     }
 }
 
@@ -486,11 +490,13 @@ impl LastAnswer {
                 answer_id = $1,
                 answer_consecutive_correct = $2,
                 answer_stage = $3,
-                answer_answered_at = $4
-             where id = $5",
+                answer_state = $4,
+                answer_answered_at = $5
+             where id = $6",
             answer.id,
             consecutive_correct,
             stage,
+            answer.state,
             answered_at,
             self.id
         )

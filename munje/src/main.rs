@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
             .configure(questions::routes::register)
             .configure(queues::routes::register)
     })
-    .bind("127.0.0.1:8080")?;
+    .bind("0.0.0.0:8080")?;
 
     info!("Starting server");
     server.run().await?;

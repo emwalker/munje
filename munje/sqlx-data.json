@@ -1,0 +1,706 @@
+{
+  "db": "PostgreSQL",
+  "049774034c1b2a7187ea7c96752eef40659890cc7d5b4870ccc68d12788cd262": {
+    "query": "select\n                a.id answer_id, a.state answer_state, a.question_id, q.title question_title,\n                q.text question_text, q.link question_link, a.queue_id,\n                a.answered_at answer_answered_at,\n                a.consecutive_correct answer_consecutive_correct\n             from answers a\n             join questions q on a.question_id = q.id\n             where a.queue_id = $1 order by a.created_at desc limit 6",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "answer_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "answer_state",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "question_title",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "question_text",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "question_link",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "queue_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "answer_answered_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 8,
+          "name": "answer_consecutive_correct",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "1637ab13f4c892aa975756fda9fec4b4917e377dd4daec7d0d1e1e69605b8ed5": {
+    "query": "insert into questions\n                (id, author_id, title, text, link, link_logo, created_at, updated_at)\n             values ($1, $2, $3, $4, $5, $6, $7, $8)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "1733415a2c3dde4343db15ea0df3061f20324761302bacf505196c7ae71b761b": {
+    "query": "select * from queues where user_id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "starting_question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "updated_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "title",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "description",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "17b8b7241b112f114c36e9d28c80c7a6c2e0c1abc74ac7b8b4db29c9f6013559": {
+    "query": "insert into last_answers\n                (\n                    answer_answered_at,\n                    answer_id,\n                    answer_state,\n                    answer_consecutive_correct,\n                    created_at,\n                    id,\n                    question_id,\n                    queue_id,\n                    updated_at,\n                    user_id\n                )\n                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Int4",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "246e24915bd95c8f2e80314e62488c0294514cbbdcdf9301c19f549a4114d659": {
+    "query": "update last_answers set\n                answer_id = $1,\n                answer_consecutive_correct = $2,\n                answer_state = $3,\n                answer_answered_at = $4\n             where id = $5",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Int4",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "3e36defb02aa4dbc62620814c5b2201124521a80eff0c6d1e43076b226dfb9d1": {
+    "query": "select * from queues where user_id = $1 and starting_question_id = $2",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "starting_question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "updated_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "title",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "description",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "6074eebac9a393db7954d9cf8b821fb38799661559467903ce80e6cd526c8e24": {
+    "query": "select id, author_id, title, text, link, link_logo, created_at, updated_at\n                from questions\n                order by created_at desc",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "author_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "title",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "text",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "link",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "link_logo",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "updated_at",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": []
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false
+      ]
+    }
+  },
+  "684b1bf83b65f027480e33332d329591220dadeacc0b73401adf3f4df4553f1d": {
+    "query": "select * from answers where id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "queue_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "state",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "answered_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "consecutive_correct",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "69f5b1f3367050455713cb1651f00a04905fb38aed986f81fef3df061e5e28c0": {
+    "query": "select * from answers where queue_id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "user_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "queue_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "state",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "answered_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "consecutive_correct",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "6e5b13ad2303ec1d2eda226c2abefe793ff3fc7330cdd17da137e8c0931d9527": {
+    "query": "insert into answers\n                (id, user_id, queue_id, question_id, state, created_at)\n                values ($1, $2, $3, $4, $5, $6)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "803b3fd68df0660192d68a183a959854ace6bab875ba7028724a2c4b369e6d86": {
+    "query": "select * from queues where id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "starting_question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "user_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "updated_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "title",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "description",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        true
+      ]
+    }
+  },
+  "9d24d91e7505d55e76ed01350761b758111f30b3edc5d517729c2d3e17fd4868": {
+    "query": "select * from questions where id = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "author_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "title",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "text",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "link",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "link_logo",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "updated_at",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false
+      ]
+    }
+  },
+  "a8236aea28f139d2a829a28f872442db68e4ecedc8a79d89b8630b5e20d5247c": {
+    "query": "insert into queues\n                (id, user_id, title, description, starting_question_id, created_at, updated_at)\n                values ($1, $2, $3, $4, $5, $6, $7)",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "b03e29a84ba10d71d7c35db81b1482d5505524b85273db8830bf52623466f81a": {
+    "query": "update answers set\n                state = $1,\n                answered_at = $2,\n                consecutive_correct = $3\n             where id = $4",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Int4",
+          "Text"
+        ]
+      },
+      "nullable": []
+    }
+  },
+  "d08164d05467a20d6fa93b8361d378c1adfe92b05954dfeef6ffafe00e44f992": {
+    "query": "select * from last_answers\n                where user_id = $1\n                  and question_id = $2\n                  and queue_id = $3\n             limit 1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "answer_answered_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "answer_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "answer_consecutive_correct",
+          "type_info": "Int4"
+        },
+        {
+          "ordinal": 3,
+          "name": "answer_state",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 4,
+          "name": "created_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 6,
+          "name": "question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 7,
+          "name": "queue_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 8,
+          "name": "updated_at",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 9,
+          "name": "user_id",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text",
+          "Text",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
+  "d3405a9e498a96cbbcd2f380d78f8cb4b04dc1e94d9192da1459692907ee2889": {
+    "query": "select\n                q.id question_id,\n                la.answer_state \"answer_state?\",\n                la.answer_answered_at \"answer_answered_at?\",\n                la.answer_consecutive_correct \"answer_consecutive_correct?\"\n             from questions q\n             left join last_answers la on q.id = la.question_id\n             where (la.user_id = $1 or la.user_id is null)\n             limit 100",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "question_id",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 1,
+          "name": "answer_state?",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 2,
+          "name": "answer_answered_at?",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 3,
+          "name": "answer_consecutive_correct?",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  }
+}

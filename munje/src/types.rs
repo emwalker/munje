@@ -124,18 +124,20 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn test() -> Result<Self, envy::Error> {
+        dotenv::from_filename(".env.test.local").ok();
+        dotenv::dotenv().ok();
+        envy::from_env::<Self>()
+    }
+
     pub fn load() -> Result<Self, envy::Error> {
-        let profile = if cfg!(test) {
-            "test"
-        } else if cfg!(debug_assertions) {
+        let profile = if cfg!(debug_assertions) {
             "development"
         } else {
             "production"
         };
 
         dotenv::from_filename(format!(".env.{}.local", profile)).ok();
-        dotenv::from_filename(".env.local").ok();
-        dotenv::from_filename(format!(".env.{}", profile)).ok();
         dotenv::dotenv().ok();
 
         envy::from_env::<Self>()

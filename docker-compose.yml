@@ -1,0 +1,16 @@
+version: '3.7'
+
+services:
+  munje:
+    image: munje
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    environment:
+    - DATABASE_URL
+    env_file:
+    - .env.docker.local
+    extra_hosts:
+    - "database:172.17.0.1"
+    ports:
+    - "8080:8080"

@@ -158,7 +158,7 @@ impl Runner {
     }
 
     async fn fetch_db() -> Result<Pool> {
-        let config = Config::load()?;
+        let config = Config::test()?;
         let result = PgPoolOptions::new()
             .max_connections(1)
             .connect(&config.database_url)

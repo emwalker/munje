@@ -83,6 +83,7 @@ pub struct WideAnswer {
     pub queue_id: String,
 }
 
+#[derive(Debug)]
 pub struct AnswerQuestion {
     pub question_id: String,
     pub queue_id: String,
@@ -336,6 +337,7 @@ impl Answer {
         )
         .execute(db)
         .await?;
+        info!("Answer {} created", id);
 
         Ok(Self {
             answered_at: None,

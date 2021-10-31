@@ -37,25 +37,29 @@
     {% endmatch %}
   </div>
 
-  <h3 class="subtitle mt-6">Recent answers</h3>
-  <table class="table is-striped is-hoverable is-fullwidth">
-    <tbody>
-      {% for answer in recent_answers %}
-        <tr data-answer-id="{{ answer.answer_id }}">
-          <td>{{ answer.question_title }}</td>
-          <td class="has-text-centered">
-            <span class="tag is-light {{ answer.tag_class() }}">
-              {{ answer.tag_text() }}
-            </span>
-          </td>
-          <td class="has-text-centered">
-            {{ answer.answer_stage() }}
-          </td>
-          <td class="has-text-centered">
-            {{ answer.answered_at() }}
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+  <h3 class="subtitle mt-6 mb-3">Recent answers</h3>
+  {% if recent_answers.len() > 0 %}
+    <table class="table is-striped is-hoverable is-fullwidth">
+      <tbody>
+        {% for answer in recent_answers %}
+          <tr data-answer-id="{{ answer.answer_id }}">
+            <td>{{ answer.question_title }}</td>
+            <td class="has-text-centered">
+              <span class="tag is-light {{ answer.tag_class() }}">
+                {{ answer.tag_text() }}
+              </span>
+            </td>
+            <td class="has-text-centered">
+              {{ answer.answer_stage() }}
+            </td>
+            <td class="has-text-centered">
+              {{ answer.answered_at() }}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    There are no answers in this queue yet.
+  {% endif %}
 {% endblock %}

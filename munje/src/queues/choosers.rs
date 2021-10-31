@@ -14,6 +14,7 @@ pub enum State {
     Unseen,
 }
 
+#[derive(Copy, Clone)]
 pub enum TimeUnit {
     #[allow(dead_code)]
     Days,
@@ -71,6 +72,7 @@ pub trait Strategy {
 #[derive(Copy, Clone)]
 pub struct Clock {
     now: DateTime,
+    unit: TimeUnit,
 }
 
 pub struct Random {
@@ -108,15 +110,20 @@ pub struct SpacedRepetition {
 }
 
 impl Clock {
-    fn new() -> Self {
+    fn new(unit: TimeUnit) -> Self {
         Self {
             now: DateTime::now(),
+            unit,
         }
     }
 
     #[allow(dead_code)]
-    fn days(&self, n: i64) -> DateTime {
-        self.now + chrono::Duration::days(n)
+    fn ticks(&self, n: i64) -> DateTime {
+        self.now
+            + match self.unit {
+                TimeUnit::Days => chrono::Duration::days(n),
+                TimeUnit::Minutes => chrono::Duration::minutes(n),
+            }
     }
 
     fn threshold(&self) -> DateTime {
@@ -151,13 +158,14 @@ impl fmt::Display for State {
 }
 
 impl ChoiceRow {
-    fn to_choice(&self) -> Choice {
+    fn to_choice(&self, clock: &Clock) -> Choice {
         let state = State::from(self.answer_state.clone());
+        let already = clock.ticks(-2).to_chrono();
         let answered_at: chrono::DateTime<chrono::Utc> = match &self.answer_answered_at {
             Some(string) => chrono::DateTime::parse_from_rfc3339(string)
                 .map(|dt| chrono::DateTime::from(dt))
-                .unwrap_or(chrono::Utc::now()),
-            None => chrono::Utc::now(),
+                .unwrap_or(already),
+            None => already,
         };
         let consecutive_correct = self.answer_consecutive_correct.unwrap_or(0);
 
@@ -228,7 +236,8 @@ impl<'c> FromIterator<&'c Choice> for Vec<Choice> {
 #[allow(dead_code)]
 impl Random {
     pub fn from_rows(choices: Vec<ChoiceRow>) -> Self {
-        Self::new(choices.iter().map(ChoiceRow::to_choice).collect())
+        let clock = Clock::new(TimeUnit::Days);
+        Self::new(choices.iter().map(|row| row.to_choice(&clock)).collect())
     }
 
     fn new(choices: Vec<Choice>) -> Self {
@@ -263,9 +272,10 @@ impl Strategy for Random {
 
 impl SpacedRepetition {
     pub fn from_rows(choices: Vec<ChoiceRow>, unit: TimeUnit) -> Self {
+        let clock = Clock::new(unit);
         Self::new(
-            choices.iter().map(ChoiceRow::to_choice).collect(),
-            Clock::new(),
+            choices.iter().map(|row| row.to_choice(&clock)).collect(),
+            clock,
             unit,
         )
     }
@@ -332,22 +342,22 @@ mod tests {
 
     #[test]
     fn random_choice() {
-        let clock = Clock::new();
+        let clock = Clock::new(TimeUnit::Days);
         let chooser = Random::new(vec![
-            C("1", 0, clock.days(0), State::Unseen),
-            C("2", 0, clock.days(0), State::Correct),
-            C("3", 0, clock.days(0), State::Incorrect),
+            C("1", 0, clock.ticks(0), State::Unseen),
+            C("2", 0, clock.ticks(0), State::Correct),
+            C("3", 0, clock.ticks(0), State::Incorrect),
         ]);
         assert_eq!(1, chooser.to_vec().iter().take(1).len());
     }
 
     #[test]
     fn next_question() {
-        let clock = Clock::new();
+        let clock = Clock::new(TimeUnit::Days);
         let chooser = Random::new(vec![
-            C("1", 0, clock.days(0), State::Unseen),
-            C("2", 0, clock.days(0), State::Correct),
-            C("3", 0, clock.days(0), State::Incorrect),
+            C("1", 0, clock.ticks(0), State::Unseen),
+            C("2", 0, clock.ticks(0), State::Correct),
+            C("3", 0, clock.ticks(0), State::Incorrect),
         ]);
         let (question, _) = chooser.next_question().unwrap();
         assert_ne!(None, question);
@@ -355,7 +365,7 @@ mod tests {
 
     #[test]
     fn spaced_repetition() {
-        let clock = Clock::new();
+        let clock = Clock::new(TimeUnit::Minutes);
 
         struct TestCase<'s> {
             name: &'s str,
@@ -367,67 +377,87 @@ mod tests {
             TestCase {
                 name: "A simple case",
                 choices: vec![
-                    C("0", 0, clock.days(1), State::Unseen),
-                    C("1", 2, clock.days(-1), State::Correct),
-                    C("2", 0, clock.days(-2), State::Incorrect),
+                    C("0", 0, clock.ticks(1), State::Unseen),
+                    C("1", 2, clock.ticks(-1), State::Correct),
+                    C("2", 0, clock.ticks(-2), State::Incorrect),
                 ],
-                expected: (Some(2), clock.days(-1)),
+                expected: (Some(2), clock.ticks(-1)),
             },
             TestCase {
                 name: "When a question is not ready to work on yet",
-                choices: vec![C("1", 2, clock.days(0), State::Correct)],
-                expected: (None, clock.days(4)),
+                choices: vec![C("1", 2, clock.ticks(0), State::Correct)],
+                expected: (None, clock.ticks(4)),
             },
             TestCase {
                 name: "When there are several questions that are ready to work on",
                 choices: vec![
-                    C("0", 1, clock.days(-2), State::Correct),
-                    C("1", 2, clock.days(-3), State::Correct),
-                    C("2", 3, clock.days(-10), State::Correct),
+                    C("0", 1, clock.ticks(-2), State::Correct),
+                    C("1", 2, clock.ticks(-3), State::Correct),
+                    C("2", 3, clock.ticks(-10), State::Correct),
                 ],
-                expected: (Some(0), clock.days(0)),
+                expected: (Some(0), clock.ticks(0)),
             },
             TestCase {
                 name: "When there are several questions, none of which is ready to work on",
                 choices: vec![
-                    C("0", 1, clock.days(0), State::Correct),
-                    C("1", 2, clock.days(0), State::Correct),
-                    C("2", 3, clock.days(0), State::Correct),
+                    C("0", 1, clock.ticks(0), State::Correct),
+                    C("1", 2, clock.ticks(0), State::Correct),
+                    C("2", 3, clock.ticks(0), State::Correct),
                 ],
-                expected: (None, clock.days(2)),
+                expected: (None, clock.ticks(2)),
             },
             TestCase {
                 name: "When there is more than one choice for the same question",
                 choices: vec![
-                    C("0", 1, clock.days(0), State::Correct),
-                    C("0", 0, clock.days(-1), State::Incorrect),
-                    C("0", 0, clock.days(-2), State::Incorrect),
+                    C("0", 1, clock.ticks(0), State::Correct),
+                    C("0", 0, clock.ticks(-1), State::Incorrect),
+                    C("0", 0, clock.ticks(-2), State::Incorrect),
                 ],
-                expected: (None, clock.days(2)),
+                expected: (None, clock.ticks(2)),
             },
             TestCase {
                 name: "Another case where no questions are ready",
                 choices: vec![
-                    C("0", 1, clock.days(0), State::Correct),
-                    C("1", 1, clock.days(-1), State::Correct),
-                    C("2", 4, clock.days(-1), State::Correct),
+                    C("0", 1, clock.ticks(0), State::Correct),
+                    C("1", 1, clock.ticks(-1), State::Correct),
+                    C("2", 4, clock.ticks(-1), State::Correct),
                 ],
-                expected: (None, clock.days(1)),
+                expected: (None, clock.ticks(1)),
             },
             TestCase {
                 name: "A third case where no questions are ready",
                 choices: vec![
-                    C("0", 1, clock.days(0), State::Correct),
-                    C("1", 1, clock.days(-1), State::Correct),
-                    C("2", 4, clock.days(-1), State::Correct),
+                    C("0", 1, clock.ticks(0), State::Correct),
+                    C("1", 1, clock.ticks(-1), State::Correct),
+                    C("2", 4, clock.ticks(-1), State::Correct),
                 ],
-                expected: (None, clock.days(1)),
+                expected: (None, clock.ticks(1)),
+            },
+            TestCase {
+                name: "When there are no answers in the queue yet",
+                choices: vec![
+                    ChoiceRow {
+                        question_id: "0".to_string(),
+                        answer_answered_at: None,
+                        answer_consecutive_correct: None,
+                        answer_state: None,
+                    }
+                    .to_choice(&clock),
+                    ChoiceRow {
+                        question_id: "1".to_string(),
+                        answer_answered_at: None,
+                        answer_consecutive_correct: None,
+                        answer_state: None,
+                    }
+                    .to_choice(&clock),
+                ],
+                expected: (Some(0), clock.ticks(-1)),
             },
         ];
 
         for case in cases {
             let chooser =
-                SpacedRepetition::new(case.choices.clone(), clock.clone(), TimeUnit::Days);
+                SpacedRepetition::new(case.choices.clone(), clock.clone(), TimeUnit::Minutes);
 
             let (choice, available_at) = chooser.next_question().unwrap();
             let expected_choice = match case.expected.0 {

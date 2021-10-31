@@ -10,6 +10,7 @@ use anyhow::Result;
 use munje::{
     questions, queues, routes,
     types::{AppState, Pool},
+    users,
 };
 use scraper::{ElementRef, Html, Selector};
 use sqlx::sqlite::SqlitePoolOptions;
@@ -81,13 +82,9 @@ impl Document {
     }
 }
 
-pub struct User {
-    pub id: String,
-}
-
 pub struct Runner {
     pub db: Pool,
-    pub user: User,
+    pub user: users::User,
     signing_key: cookie::Key,
 }
 
@@ -95,16 +92,17 @@ impl Runner {
     pub async fn new() -> Self {
         let signing_key = Key::generate(); // This will usually come from configuration!
 
-        let user = User {
-            id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
-        };
-
         match Self::fetch_db().await {
-            Ok(db) => Runner {
-                db: db,
-                user: user,
-                signing_key,
-            },
+            Ok(db) => {
+                let user = users::User::find_by_handle("gnusto".to_string(), &db)
+                    .await
+                    .unwrap();
+                Runner {
+                    db: db,
+                    user: user,
+                    signing_key,
+                }
+            }
             Err(err) => panic!("There was a problem: {}", err),
         }
     }

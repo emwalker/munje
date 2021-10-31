@@ -75,6 +75,10 @@ impl DateTime {
         Self(chrono::Utc::now())
     }
 
+    pub fn to_chrono(&self) -> chrono::DateTime<chrono::Utc> {
+        self.0.clone()
+    }
+
     pub fn humanize(&self) -> String {
         format!("{}", HumanTime::from(self.0))
     }

@@ -13,7 +13,7 @@ actix-web-flash-messages = { version = "0", features = ["cookies"] }
 anyhow = "1"
 askama = "0"
 base64 = "0"
-chrono = "0"
+chrono = { version = "0", features = ["serde"] }
 chrono-humanize = "0"
 comrak = "0"
 derive_more = "0"

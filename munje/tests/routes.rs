@@ -108,6 +108,8 @@ async fn show_queue() -> TestResult {
         CreateQueue {
             user_id: runner.user.id.to_string(),
             starting_question_id: question.id,
+            title: "Algorithms and data structures".to_string(),
+            description: "A queue".to_string(),
         },
         &runner.db,
     )
@@ -140,6 +142,8 @@ async fn answer_question() -> TestResult {
         CreateQueue {
             user_id: runner.user.id.to_string(),
             starting_question_id: question.id.clone(),
+            title: "Algorithms and data structures".to_string(),
+            description: "A queue".to_string(),
         },
         &runner.db,
     )
@@ -158,5 +162,16 @@ async fn answer_question() -> TestResult {
     let res = runner.post(req).await?;
 
     assert_eq!(res.status, http::StatusCode::SEE_OTHER);
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn list_queues() -> TestResult {
+    let res = Runner::new().await.get("/gnusto/queues").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!(
+        "Queues you are working on",
+        res.doc.select_text("h2").unwrap()
+    );
     Ok(())
 }

@@ -10,14 +10,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::queues::{AnswerQuestion, NextQuestion, Queue, WideAnswer};
 use crate::types::{AppState, CurrentPage, Message};
+use crate::users::User;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
-    cfg.service(show).service(answer_question);
+    cfg.service(show).service(answer_question).service(list);
 }
 
 fn page() -> CurrentPage {
     CurrentPage {
-        path: "/queues".to_string(),
+        path: "/gnusto/queues".to_string(),
     }
 }
 
@@ -58,6 +59,63 @@ impl error::ResponseError for ShowError {
         .unwrap();
         HttpResponse::Ok().content_type("text/html").body(s)
     }
+}
+
+#[derive(Template)]
+#[template(path = "queues/list.jinja")]
+struct List<'a> {
+    queues: &'a Vec<Queue>,
+    page: CurrentPage,
+    messages: &'a Vec<Message>,
+}
+
+#[derive(Debug, Display, Error)]
+#[display(fmt = "There was a problem getting the list of queues")]
+struct ListError {
+    message: String,
+    handle: String,
+}
+
+impl error::ResponseError for ListError {
+    fn error_response(&self) -> HttpResponse {
+        error!("{}", self.message);
+        FlashMessage::error(self.message.clone()).send();
+        HttpResponse::SeeOther()
+            .append_header((http::header::LOCATION, "/questions"))
+            .finish()
+    }
+}
+
+// FIXME: /{user-handle}/queues
+#[get("/{handle}/queues")]
+async fn list(
+    state: Data<AppState>,
+    messages: IncomingFlashMessages,
+    path: Path<String>,
+) -> Result<HttpResponse, Error> {
+    let handle = path.into_inner();
+    let messages = Message::to_messages(&messages);
+    let queues = User::find_by_handle(handle.clone(), &state.db)
+        .await
+        .map_err(|error| ListError {
+            message: format!("Problem getting list of queues: {}", error),
+            handle: handle.clone(),
+        })?
+        .queues(&state.db)
+        .await
+        .map_err(|error| ListError {
+            message: format!("Problem getting list of queues: {}", error),
+            handle: handle.clone(),
+        })?;
+
+    let s = List {
+        messages: &messages,
+        page: page(),
+        queues: &queues,
+    }
+    .render()
+    .unwrap();
+    Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
 #[get("/queues/{id}")]

@@ -11,7 +11,7 @@
           <div class="card-header-title">{{ question.title }}</div>
           <div class="card-content" data-next-question-id="{{ question.id }}">
             <div class="markdown-body mb-5">
-              {{ question.markdown()|safe }}
+              {{ question.text.markdown()|safe }}
             </div>
             <form method="POST" class="has-text-centered"
               action="/queues/{{ queue.id }}/questions/{{ question.id }}"

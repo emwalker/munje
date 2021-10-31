@@ -6,26 +6,41 @@ use sqlx::FromRow;
 use std::convert::TryFrom;
 use uuid::Uuid;
 
-use crate::questions::Question;
+use crate::questions::{Question, QuestionRow};
 use crate::queues::{
     choosers,
     choosers::{ChoiceRow, Strategy},
 };
-use crate::types::{DateTime, Pool};
+use crate::types::{DateTime, Markdown, Pool};
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct CreateQueue {
-    pub user_id: String,
+    pub description: String,
     pub starting_question_id: String,
+    pub title: String,
+    pub user_id: String,
 }
 
 #[derive(Debug, Serialize, FromRow)]
-pub struct Queue {
-    pub id: String,
-    pub user_id: String,
-    pub starting_question_id: String,
+pub struct QueueRow {
     pub created_at: String,
+    pub description: Option<String>,
+    pub id: String,
+    pub starting_question_id: String,
+    pub title: Option<String>,
     pub updated_at: String,
+    pub user_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Queue {
+    pub created_at: DateTime,
+    pub description: Markdown,
+    pub id: String,
+    pub starting_question_id: String,
+    pub title: String,
+    pub updated_at: DateTime,
+    pub user_id: String,
 }
 
 pub struct UpsertResult<T> {
@@ -114,15 +129,42 @@ trait Creatable {
 
 impl Creatable for Queue {}
 
+impl QueueRow {
+    pub fn to_queue(&self) -> Queue {
+        Queue {
+            created_at: DateTime::from(&self.created_at),
+            description: Markdown::from(
+                self.description
+                    .clone()
+                    .unwrap_or("Description of queue".to_string()),
+            ),
+            id: self.id.clone(),
+            starting_question_id: self.starting_question_id.clone(),
+            title: self
+                .title
+                .clone()
+                .unwrap_or("Algorithms and data structures".to_string()),
+            updated_at: DateTime::from(&self.updated_at),
+            user_id: self.user_id.clone(),
+        }
+    }
+}
+
 impl Queue {
     pub async fn create(queue: CreateQueue, db: &Pool) -> Result<Self> {
         let (id, timestamp) = Self::id_and_timestamp();
 
+        let title = "Algorithms and data structures";
+        let description = "A queue of problems related to this question";
+
         sqlx::query!(
-            "insert into queues (id, user_id, starting_question_id, created_at, updated_at)
-                values ($1, $2, $3, $4, $5)",
+            "insert into queues
+                (id, user_id, title, description, starting_question_id, created_at, updated_at)
+                values ($1, $2, $3, $4, $5, $6, $7)",
             id,
             queue.user_id,
+            title,
+            description,
             queue.starting_question_id,
             timestamp,
             timestamp,
@@ -133,22 +175,24 @@ impl Queue {
         Ok(Self {
             id,
             user_id: queue.user_id.clone(),
+            title: queue.title.clone(),
+            description: Markdown::from(queue.description.clone()),
             starting_question_id: queue.starting_question_id.clone(),
-            created_at: timestamp.clone(),
-            updated_at: timestamp,
+            created_at: DateTime::from(&timestamp),
+            updated_at: DateTime::from(&timestamp),
         })
     }
 
     pub async fn find(id: &str, db: &Pool) -> Result<Self> {
-        let queue = sqlx::query_as!(Self, "select * from queues where id = $1", id)
+        let row = sqlx::query_as!(QueueRow, "select * from queues where id = $1", id)
             .fetch_one(db)
             .await?;
-        Ok(queue)
+        Ok(row.to_queue())
     }
 
     pub async fn find_or_create(queue: CreateQueue, db: &Pool) -> Result<UpsertResult<Self>> {
         let result = sqlx::query_as!(
-            Self,
+            QueueRow,
             "select * from queues where user_id = $1 and starting_question_id = $2",
             queue.user_id,
             queue.starting_question_id,
@@ -157,8 +201,8 @@ impl Queue {
         .await?;
 
         let upsert_result = match result {
-            Some(queue) => UpsertResult {
-                record: queue,
+            Some(row) => UpsertResult {
+                record: row.to_queue(),
                 created: false,
             },
             None => UpsertResult {
@@ -342,14 +386,14 @@ impl Answer {
     }
 
     pub async fn question(&self, db: &Pool) -> Result<Question> {
-        let question = sqlx::query_as!(
-            Question,
+        let row = sqlx::query_as!(
+            QuestionRow,
             "select * from questions where id = $1",
             self.question_id
         )
         .fetch_one(db)
         .await?;
-        Ok(question)
+        Ok(row.to_question())
     }
 }
 

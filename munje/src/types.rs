@@ -1,6 +1,8 @@
 use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages, Level};
 use chrono;
 use chrono_humanize::HumanTime;
+use comrak::{markdown_to_html, ComrakOptions};
+use serde::Serialize;
 use sqlx::SqlitePool;
 use std::ops::{Add, Sub};
 
@@ -58,7 +60,7 @@ impl CurrentPage {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
 pub struct DateTime(pub chrono::DateTime<chrono::Utc>);
 
 impl DateTime {
@@ -91,5 +93,20 @@ impl Sub<DateTime> for DateTime {
 
     fn sub(self, rhs: DateTime) -> chrono::Duration {
         self.0 - rhs.0
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct Markdown {
+    text: String,
+}
+
+impl Markdown {
+    pub fn from(text: String) -> Self {
+        Self { text }
+    }
+
+    pub fn markdown(&self) -> String {
+        markdown_to_html(&self.text, &ComrakOptions::default())
     }
 }

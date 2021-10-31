@@ -32,7 +32,7 @@ fn page() -> CurrentPage {
 #[derive(Template)]
 #[template(path = "questions/list.jinja")]
 struct List<'a> {
-    items: &'a Vec<Question>,
+    questions: &'a Vec<Question>,
     messages: &'a Vec<Message>,
     page: CurrentPage,
 }
@@ -64,14 +64,14 @@ async fn list(
     state: Data<AppState>,
     messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, Error> {
-    let items = Question::find_all(&state.db)
+    let questions = Question::find_all(&state.db)
         .await
         .map_err(|error| ListError {
             message: format!("Problem fetching questions: {}", error),
         })?;
 
     let s = List {
-        items: &items,
+        questions: &questions,
         messages: &Message::to_messages(&messages),
         page: page(),
     }
@@ -256,8 +256,10 @@ async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpRe
     let id = path.into_inner();
 
     let queue = CreateQueue {
-        user_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        description: "Questions related to algorithms and data structures".to_string(),
         starting_question_id: id.clone(),
+        title: "Algorithms and data strucures".to_string(),
+        user_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
     };
     let result = Queue::find_or_create(queue, &state.db)
         .await

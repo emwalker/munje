@@ -1,0 +1,26 @@
+{% extends "two-columns.jinja" %}
+{% block title %}Your queues{% endblock %}
+{% block content %}
+  <h2 class="title">Queues you are working on</h2>
+
+  <p class="mb-5">
+    A queue is a series of questions that you will answer in order to pick up a new problem solving
+    skill. To start a queue, go to a <a href="/questions">question</a> that looks interesting
+    and click "Start queue".
+  </p>
+
+  {% if queues.len() > 0 %}
+    {% for queue in queues %}
+      <div class="card">
+        <a class="question-text" href="/queues/{{ queue.id }}">
+          <div class="card-header-title">{{ queue.title }}</div>
+        </a>
+        <div class="card-content pt-0">
+          {{ queue.description.markdown()|safe }}
+        </div>
+      </div>
+    {% endfor %}
+  {% else %}
+    No queues were found
+  {% endif %}
+{% endblock %}

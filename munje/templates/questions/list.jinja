@@ -2,15 +2,16 @@
 {% block title %}Questions{% endblock %}
 {% block content %}
   <a href="/questions/new" class="button is-primary is-pulled-right">New question</a>
-  <h2 class="title">Questions</h2>
-  {% if items.len() > 0 %}
-    {% for question in items %}
+  <h2 class="title mb-5">Questions</h2>
+
+  {% if questions.len() > 0 %}
+    {% for question in questions %}
       <div class="card">
         <a class="question-text" href="/questions/{{ question.id }}">
           <div class="card-header-title">{{ question.title }}</div>
         </a>
         <div class="card-content pt-0">
-          {{ question.markdown()|safe }}
+          {{ question.text.markdown()|safe }}
         </div>
       </div>
     {% endfor %}

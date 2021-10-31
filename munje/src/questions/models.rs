@@ -1,12 +1,11 @@
 use anyhow::Result;
 use chrono::prelude::*;
-use comrak::{markdown_to_html, ComrakOptions};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::types::Pool;
+use crate::types::{DateTime, Markdown, Pool};
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct CreateQuestion {
@@ -17,7 +16,7 @@ pub struct CreateQuestion {
 }
 
 #[derive(Debug, Serialize, FromRow)]
-pub struct Question {
+pub struct QuestionRow {
     pub id: String,
     pub author_id: String,
     pub title: String,
@@ -28,27 +27,55 @@ pub struct Question {
     pub updated_at: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct Question {
+    pub author_id: String,
+    pub created_at: DateTime,
+    pub id: String,
+    pub link_logo: Option<String>,
+    pub link: Option<String>,
+    pub text: Markdown,
+    pub title: String,
+    pub updated_at: DateTime,
+}
+
+impl QuestionRow {
+    pub fn to_question(&self) -> Question {
+        Question {
+            author_id: self.author_id.clone(),
+            created_at: DateTime::from(&self.created_at),
+            id: self.id.clone(),
+            link_logo: self.link_logo.clone(),
+            link: self.link.clone(),
+            text: Markdown::from(self.text.clone()),
+            title: self.title.clone(),
+            updated_at: DateTime::from(&self.updated_at),
+        }
+    }
+}
+
 impl Question {
     pub async fn find_all(db: &Pool) -> Result<Vec<Self>> {
         let questions = sqlx::query_as!(
-            Self,
-            r#"
-            select id, author_id, title, text, link, link_logo, created_at, updated_at
+            QuestionRow,
+            "select id, author_id, title, text, link, link_logo, created_at, updated_at
                 from questions
-                order by created_at desc
-            "#
+                order by created_at desc",
         )
         .fetch_all(db)
-        .await?;
+        .await?
+        .iter()
+        .map(|row| row.to_question())
+        .collect();
 
         Ok(questions)
     }
 
     pub async fn find(id: String, db: &Pool) -> Result<Self> {
-        let question = sqlx::query_as!(Self, "select * from questions where id = $1", id)
+        let row = sqlx::query_as!(QuestionRow, "select * from questions where id = $1", id)
             .fetch_one(db)
             .await?;
-        Ok(question)
+        Ok(row.to_question())
     }
 
     pub async fn create(question: CreateQuestion, db: &Pool) -> Result<Self> {
@@ -79,18 +106,14 @@ impl Question {
         .await?;
 
         Ok(Self {
-            id: uuid,
             author_id: question.author_id.to_string(),
-            title: question.title,
-            text,
-            link: Some(question.link.to_string()),
+            created_at: DateTime::from(&created_at),
+            id: uuid,
             link_logo: question.link_logo,
-            created_at: created_at.clone(),
-            updated_at: created_at,
+            link: Some(question.link.to_string()),
+            text: Markdown::from(text),
+            title: question.title,
+            updated_at: DateTime::from(&created_at),
         })
-    }
-
-    pub fn markdown(&self) -> String {
-        markdown_to_html(&self.text, &ComrakOptions::default())
     }
 }

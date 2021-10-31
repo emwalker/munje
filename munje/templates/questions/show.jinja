@@ -17,7 +17,7 @@
   </h2>
 
   <div class="markdown-body mb-5">
-    {{ question.markdown()|safe }}
+    {{ question.text.markdown()|safe }}
   </div>
 
   <form method="POST" action="/questions/{{ question.id }}/queues">

@@ -2,7 +2,7 @@ use anyhow::{bail, Error, Result};
 use chrono;
 use rand::distributions::Uniform;
 use rand::{thread_rng, Rng};
-use std::{cmp::Reverse, fmt, iter::FromIterator};
+use std::{cmp::Reverse, convert::TryFrom, fmt, iter::FromIterator};
 
 use crate::types::DateTime;
 
@@ -22,16 +22,17 @@ pub enum TimeUnit {
 
 pub struct ChoiceRow {
     pub answer_answered_at: Option<String>,
-    pub answer_stage: Option<i64>,
+    pub answer_consecutive_correct: Option<i64>,
     pub answer_state: Option<String>,
     pub question_id: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Choice {
+    stage: i64,
     pub answered_at: DateTime,
+    pub consecutive_correct: i64,
     pub question_id: String,
-    pub stage: i64,
     pub state: State,
 }
 
@@ -158,8 +159,14 @@ impl ChoiceRow {
                 .unwrap_or(chrono::Utc::now()),
             None => chrono::Utc::now(),
         };
-        let stage = self.answer_stage.unwrap_or(0);
-        Choice::new(&self.question_id, stage, DateTime(answered_at), state)
+        let consecutive_correct = self.answer_consecutive_correct.unwrap_or(0);
+
+        Choice::new(
+            &self.question_id,
+            DateTime(answered_at),
+            consecutive_correct,
+            state,
+        )
     }
 }
 
@@ -169,7 +176,7 @@ impl fmt::Debug for ChoiceRow {
             f,
             "ChoiceRow {{ {} {} {} }}",
             self.question_id,
-            self.answer_stage.unwrap_or(-1),
+            self.answer_consecutive_correct.unwrap_or(0),
             self.answer_state.clone().unwrap_or("None".to_string()),
         )
     }
@@ -177,18 +184,30 @@ impl fmt::Debug for ChoiceRow {
 
 impl Choice {
     #[allow(dead_code)]
-    pub fn new(question_id: &str, stage: i64, answered_at: DateTime, state: State) -> Self {
+    pub fn new(
+        question_id: &str,
+        answered_at: DateTime,
+        consecutive_correct: i64,
+        state: State,
+    ) -> Self {
         Self {
             answered_at: answered_at,
+            consecutive_correct,
             question_id: question_id.to_string(),
-            stage,
-            state: state,
+            stage: Self::stage_from(consecutive_correct),
+            state,
         }
+    }
+
+    pub fn stage_from(consecutive_correct: i64) -> i64 {
+        let base: i64 = 2;
+        base.pow(u32::try_from(consecutive_correct).unwrap_or(0))
     }
 
     fn clone(&self) -> Self {
         Self {
             answered_at: self.answered_at.clone(),
+            consecutive_correct: self.consecutive_correct,
             question_id: self.question_id.clone(),
             stage: self.stage,
             state: self.state.clone(),
@@ -282,7 +301,7 @@ impl Strategy for SpacedRepetition {
         let threshold = self.clock.threshold();
         choices.sort_by_key(|c| (c.question_id.clone(), Reverse(c.answered_at)));
         choices.dedup_by_key(|c| c.question_id.clone());
-        choices.sort_by_key(|c| (c.stage, Reverse(threshold - c.answered_at)));
+        choices.sort_by_key(|c| (c.consecutive_correct, Reverse(threshold - c.answered_at)));
         choices
     }
 
@@ -307,17 +326,17 @@ mod tests {
     use super::*;
 
     #[allow(non_snake_case)]
-    fn C(id: &str, stage: i64, days: DateTime, state: State) -> Choice {
-        Choice::new(id, stage, days, state)
+    fn C(id: &str, consecutive_correct: i64, answered_at: DateTime, state: State) -> Choice {
+        Choice::new(id, answered_at, consecutive_correct, state)
     }
 
     #[test]
     fn random_choice() {
         let clock = Clock::new();
         let chooser = Random::new(vec![
-            Choice::new("1", 0, clock.days(0), State::Unseen),
-            Choice::new("2", 0, clock.days(0), State::Correct),
-            Choice::new("3", 0, clock.days(0), State::Incorrect),
+            C("1", 0, clock.days(0), State::Unseen),
+            C("2", 0, clock.days(0), State::Correct),
+            C("3", 0, clock.days(0), State::Incorrect),
         ]);
         assert_eq!(1, chooser.to_vec().iter().take(1).len());
     }
@@ -326,9 +345,9 @@ mod tests {
     fn next_question() {
         let clock = Clock::new();
         let chooser = Random::new(vec![
-            Choice::new("1", 0, clock.days(0), State::Unseen),
-            Choice::new("2", 0, clock.days(0), State::Correct),
-            Choice::new("3", 0, clock.days(0), State::Incorrect),
+            C("1", 0, clock.days(0), State::Unseen),
+            C("2", 0, clock.days(0), State::Correct),
+            C("3", 0, clock.days(0), State::Incorrect),
         ]);
         let (question, _) = chooser.next_question().unwrap();
         assert_ne!(None, question);
@@ -348,59 +367,59 @@ mod tests {
             TestCase {
                 name: "A simple case",
                 choices: vec![
-                    C("0", 1, clock.days(1), State::Unseen),
-                    C("1", 4, clock.days(-1), State::Correct),
-                    C("2", 1, clock.days(-2), State::Incorrect),
+                    C("0", 0, clock.days(1), State::Unseen),
+                    C("1", 2, clock.days(-1), State::Correct),
+                    C("2", 0, clock.days(-2), State::Incorrect),
                 ],
                 expected: (Some(2), clock.days(-1)),
             },
             TestCase {
                 name: "When a question is not ready to work on yet",
                 choices: vec![C("1", 2, clock.days(0), State::Correct)],
-                expected: (None, clock.days(2)),
+                expected: (None, clock.days(4)),
             },
             TestCase {
                 name: "When there are several questions that are ready to work on",
                 choices: vec![
-                    C("0", 2, clock.days(-2), State::Correct),
-                    C("1", 4, clock.days(-3), State::Correct),
-                    C("2", 8, clock.days(-10), State::Correct),
+                    C("0", 1, clock.days(-2), State::Correct),
+                    C("1", 2, clock.days(-3), State::Correct),
+                    C("2", 3, clock.days(-10), State::Correct),
                 ],
                 expected: (Some(0), clock.days(0)),
             },
             TestCase {
                 name: "When there are several questions, none of which is ready to work on",
                 choices: vec![
-                    C("0", 2, clock.days(0), State::Correct),
-                    C("1", 4, clock.days(0), State::Correct),
-                    C("2", 8, clock.days(0), State::Correct),
+                    C("0", 1, clock.days(0), State::Correct),
+                    C("1", 2, clock.days(0), State::Correct),
+                    C("2", 3, clock.days(0), State::Correct),
                 ],
                 expected: (None, clock.days(2)),
             },
             TestCase {
                 name: "When there is more than one choice for the same question",
                 choices: vec![
-                    C("0", 2, clock.days(0), State::Correct),
-                    C("0", 1, clock.days(-1), State::Incorrect),
-                    C("0", 1, clock.days(-2), State::Incorrect),
+                    C("0", 1, clock.days(0), State::Correct),
+                    C("0", 0, clock.days(-1), State::Incorrect),
+                    C("0", 0, clock.days(-2), State::Incorrect),
                 ],
                 expected: (None, clock.days(2)),
             },
             TestCase {
                 name: "Another case where no questions are ready",
                 choices: vec![
-                    C("0", 2, clock.days(0), State::Correct),
-                    C("1", 2, clock.days(-1), State::Correct),
-                    C("2", 16, clock.days(-1), State::Correct),
+                    C("0", 1, clock.days(0), State::Correct),
+                    C("1", 1, clock.days(-1), State::Correct),
+                    C("2", 4, clock.days(-1), State::Correct),
                 ],
                 expected: (None, clock.days(1)),
             },
             TestCase {
                 name: "A third case where no questions are ready",
                 choices: vec![
-                    C("0", 2, clock.days(0), State::Correct),
-                    C("1", 2, clock.days(-1), State::Correct),
-                    C("2", 16, clock.days(-1), State::Correct),
+                    C("0", 1, clock.days(0), State::Correct),
+                    C("1", 1, clock.days(-1), State::Correct),
+                    C("2", 4, clock.days(-1), State::Correct),
                 ],
                 expected: (None, clock.days(1)),
             },

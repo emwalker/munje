@@ -3,13 +3,12 @@ use chrono;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use std::convert::TryFrom;
 use uuid::Uuid;
 
 use crate::questions::{Question, QuestionRow};
 use crate::queues::{
     choosers,
-    choosers::{ChoiceRow, Strategy},
+    choosers::{Choice, ChoiceRow, Strategy},
 };
 use crate::types::{DateTime, Markdown, Pool};
 
@@ -61,7 +60,6 @@ pub struct Answer {
     pub id: String,
     pub question_id: String,
     pub queue_id: String,
-    pub stage: Option<i64>,
     pub state: String,
     pub user_id: String,
 }
@@ -77,7 +75,6 @@ pub struct WideAnswer {
     pub answer_id: String,
     pub answer_state: String,
     pub answer_answered_at: Option<String>,
-    pub answer_stage: Option<i64>,
     pub answer_consecutive_correct: Option<i64>,
     pub question_title: String,
     pub question_text: String,
@@ -96,7 +93,6 @@ pub struct AnswerQuestion {
 #[derive(Debug, Serialize, FromRow)]
 pub struct LastAnswer {
     pub answer_id: String,
-    pub answer_stage: i64,
     pub answer_state: String,
     pub answer_answered_at: String,
     pub answer_consecutive_correct: i64,
@@ -112,7 +108,6 @@ pub struct UpsertLastAnswer {
     pub answer_answered_at: String,
     pub answer_consecutive_correct: i64,
     pub answer_id: String,
-    pub answer_stage: i64,
     pub answer_state: String,
     pub question_id: String,
     pub queue_id: String,
@@ -226,7 +221,8 @@ impl Queue {
 
         let choices = sqlx::query_as!(
             ChoiceRow,
-            "select q.id question_id, la.answer_stage, la.answer_state, la.answer_answered_at
+            "select q.id question_id, la.answer_state, la.answer_answered_at,
+                la.answer_consecutive_correct
              from questions q
              left join last_answers la on q.id = la.question_id
              where (la.user_id = $1 or la.user_id is null)
@@ -281,15 +277,12 @@ impl Queue {
             "correct" => last_answer.answer_consecutive_correct + 1,
             _ => 0,
         };
-        let base: i64 = 2;
-        let stage = base.pow(u32::try_from(consecutive_correct)?);
 
         let answer = answer
             .finalize(
                 answer_question.state.clone(),
                 timestamp,
                 consecutive_correct,
-                stage,
                 db,
             )
             .await?;
@@ -305,8 +298,7 @@ impl Queue {
                 a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
                 q.text question_text, q.link question_link, a.queue_id,
                 a.answered_at answer_answered_at,
-                a.consecutive_correct answer_consecutive_correct,
-                a.stage answer_stage
+                a.consecutive_correct answer_consecutive_correct
              from answers a
              join questions q on a.question_id = q.id
              where a.queue_id = $1 order by a.created_at desc limit 6",
@@ -352,7 +344,6 @@ impl Answer {
             id,
             question_id: answer.question_id.clone(),
             queue_id: answer.queue_id.clone(),
-            stage: None,
             state: answer.state.to_string(),
             user_id: answer.user_id.clone(),
         })
@@ -363,20 +354,17 @@ impl Answer {
         state: String,
         answered_at: String,
         consecutive_correct: i64,
-        stage: i64,
         db: &Pool,
     ) -> Result<Answer> {
         sqlx::query!(
             "update answers set
                 state = $1,
                 answered_at = $2,
-                consecutive_correct = $3,
-                stage = $4
-             where id = $5",
+                consecutive_correct = $3
+             where id = $4",
             state,
             answered_at,
             consecutive_correct,
-            stage,
             self.id,
         )
         .execute(db)
@@ -431,6 +419,10 @@ impl WideAnswer {
             .map(|s| DateTime::from(&s).humanize())
             .unwrap_or("now".to_string())
     }
+
+    pub fn answer_stage(&self) -> i64 {
+        Choice::stage_from(self.answer_consecutive_correct.unwrap_or(0))
+    }
 }
 
 impl Creatable for LastAnswer {}
@@ -470,14 +462,12 @@ impl LastAnswer {
 
         let answered_at = answer.answered_at.clone().unwrap_or(timestamp.clone());
         let consecutive_correct = answer.consecutive_correct.unwrap_or(0);
-        let stage = answer.stage.unwrap_or(0);
 
         sqlx::query!(
             "insert into last_answers
                 (
                     answer_answered_at,
                     answer_id,
-                    answer_stage,
                     answer_state,
                     answer_consecutive_correct,
                     created_at,
@@ -487,10 +477,9 @@ impl LastAnswer {
                     updated_at,
                     user_id
                 )
-                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)",
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
             answered_at,
             answer.id,
-            stage,
             answer.state,
             consecutive_correct,
             timestamp,
@@ -505,7 +494,6 @@ impl LastAnswer {
 
         Ok(Self {
             answer_id: answer.id.clone(),
-            answer_stage: 0,
             answer_state: answer.state.clone(),
             answer_answered_at: answered_at,
             answer_consecutive_correct: 0,
@@ -523,7 +511,6 @@ impl LastAnswer {
             .consecutive_correct
             .clone()
             .unwrap_or(self.answer_consecutive_correct);
-        let stage = answer.stage.clone().unwrap_or(self.answer_stage);
         let answered_at = answer
             .answered_at
             .clone()
@@ -533,13 +520,11 @@ impl LastAnswer {
             "update last_answers set
                 answer_id = $1,
                 answer_consecutive_correct = $2,
-                answer_stage = $3,
-                answer_state = $4,
-                answer_answered_at = $5
-             where id = $6",
+                answer_state = $3,
+                answer_answered_at = $4
+             where id = $5",
             answer.id,
             consecutive_correct,
-            stage,
             answer.state,
             answered_at,
             self.id

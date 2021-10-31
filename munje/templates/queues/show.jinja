@@ -49,11 +49,7 @@
             </span>
           </td>
           <td class="has-text-centered">
-            {% match answer.answer_stage %}
-              {% when Some with (stage) %}
-                {{ stage }}
-              {% else %}
-            {% endmatch %}
+            {{ answer.answer_stage() }}
           </td>
           <td class="has-text-centered">
             {{ answer.answered_at() }}

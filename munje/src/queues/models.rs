@@ -54,7 +54,7 @@ pub struct NextQuestion {
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct Answer {
-    pub consecutive_correct: Option<i64>,
+    pub consecutive_correct: Option<i32>,
     pub answered_at: Option<String>,
     pub created_at: String,
     pub id: String,
@@ -75,7 +75,7 @@ pub struct WideAnswer {
     pub answer_id: String,
     pub answer_state: String,
     pub answer_answered_at: Option<String>,
-    pub answer_consecutive_correct: Option<i64>,
+    pub answer_consecutive_correct: Option<i32>,
     pub question_title: String,
     pub question_text: String,
     pub question_link: Option<String>,
@@ -96,7 +96,7 @@ pub struct LastAnswer {
     pub answer_id: String,
     pub answer_state: String,
     pub answer_answered_at: String,
-    pub answer_consecutive_correct: i64,
+    pub answer_consecutive_correct: i32,
     pub created_at: String,
     pub id: String,
     pub question_id: String,
@@ -107,7 +107,7 @@ pub struct LastAnswer {
 
 pub struct UpsertLastAnswer {
     pub answer_answered_at: String,
-    pub answer_consecutive_correct: i64,
+    pub answer_consecutive_correct: i32,
     pub answer_id: String,
     pub answer_state: String,
     pub question_id: String,
@@ -222,12 +222,15 @@ impl Queue {
 
         let choices = sqlx::query_as!(
             ChoiceRow,
-            "select q.id question_id, la.answer_state, la.answer_answered_at,
-                la.answer_consecutive_correct
+            r#"select
+                q.id question_id,
+                la.answer_state "answer_state?",
+                la.answer_answered_at "answer_answered_at?",
+                la.answer_consecutive_correct "answer_consecutive_correct?"
              from questions q
              left join last_answers la on q.id = la.question_id
              where (la.user_id = $1 or la.user_id is null)
-             limit 100",
+             limit 100"#,
             self.user_id,
         )
         .fetch_all(db)
@@ -355,7 +358,7 @@ impl Answer {
         &self,
         state: String,
         answered_at: String,
-        consecutive_correct: i64,
+        consecutive_correct: i32,
         db: &Pool,
     ) -> Result<Answer> {
         sqlx::query!(
@@ -422,7 +425,7 @@ impl WideAnswer {
             .unwrap_or("now".to_string())
     }
 
-    pub fn answer_stage(&self) -> i64 {
+    pub fn answer_stage(&self) -> i32 {
         Choice::stage_from(self.answer_consecutive_correct.unwrap_or(0))
     }
 }

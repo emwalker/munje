@@ -5,6 +5,18 @@ create table users (
   updated_at text not null
 );
 
+create table questions (
+  id text not null primary key,
+  author_id text not null,
+  title text not null,
+  text text not null,
+  link text,
+  link_logo text,
+  created_at text not null,
+  updated_at text not null,
+  foreign key (author_id) references users(id)
+);
+
 create table queues (
   id text not null primary key,
   starting_question_id text not null,
@@ -18,10 +30,10 @@ create table queues (
 
 create table answer_states (
   type text not null primary key,
-  'order' integer unique not null
+  "order" integer unique not null
 );
 
-insert into answer_states (type, 'order')
+insert into answer_states (type, "order")
   values ('correct', 0), ('incorrect', 1), ('unsure', 2);
 
 create table answers (
@@ -34,18 +46,6 @@ create table answers (
   foreign key (queue_id) references queues(id),
   foreign key (question_id) references questions(id),
   foreign key (user_id) references users(id)
-);
-
-create table questions (
-  id text not null primary key,
-  author_id text not null,
-  title text not null,
-  text text not null,
-  link text,
-  link_logo text,
-  created_at text not null,
-  updated_at text not null,
-  foreign key (author_id) references users(id)
 );
 
 create table last_answers (

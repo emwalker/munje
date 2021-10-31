@@ -9,11 +9,11 @@ use anyhow::Error;
 use anyhow::Result;
 use munje::{
     questions, queues, routes,
-    types::{AppState, Pool},
+    types::{AppState, Config, Pool},
     users,
 };
 use scraper::{ElementRef, Html, Selector};
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::postgres::PgPoolOptions;
 use std::str;
 
 #[cfg(test)]
@@ -158,16 +158,17 @@ impl Runner {
     }
 
     async fn fetch_db() -> Result<Pool> {
-        let result = SqlitePoolOptions::new()
+        let config = Config::load()?;
+        let result = PgPoolOptions::new()
             .max_connections(1)
-            .connect("sqlite::memory:")
+            .connect(&config.database_url)
             .await;
         match result {
             Ok(pool) => {
                 sqlx::migrate!("./migrations").run(&pool).await?;
                 Ok(pool)
             }
-            Err(_) => panic!("Unable to fetch database pool"),
+            Err(err) => panic!("Unable to fetch database pool: {}", err),
         }
     }
 }

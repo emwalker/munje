@@ -2,11 +2,12 @@ use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages, Level};
 use chrono;
 use chrono_humanize::HumanTime;
 use comrak::{markdown_to_html, ComrakOptions};
-use serde::Serialize;
-use sqlx::SqlitePool;
+use envy;
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use std::ops::{Add, Sub};
 
-pub type Pool = SqlitePool;
+pub type Pool = PgPool;
 
 pub struct AppState {
     pub db: Pool,
@@ -112,5 +113,31 @@ impl Markdown {
 
     pub fn markdown(&self) -> String {
         markdown_to_html(&self.text, &ComrakOptions::default())
+    }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct Config {
+    pub database_url: String,
+    pub session_key: String,
+    pub rust_log: String,
+}
+
+impl Config {
+    pub fn load() -> Result<Self, envy::Error> {
+        let profile = if cfg!(test) {
+            "test"
+        } else if cfg!(debug_assertions) {
+            "development"
+        } else {
+            "production"
+        };
+
+        dotenv::from_filename(format!(".env.{}.local", profile)).ok();
+        dotenv::from_filename(".env.local").ok();
+        dotenv::from_filename(format!(".env.{}", profile)).ok();
+        dotenv::dotenv().ok();
+
+        envy::from_env::<Self>()
     }
 }

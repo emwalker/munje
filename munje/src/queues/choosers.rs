@@ -23,16 +23,16 @@ pub enum TimeUnit {
 
 pub struct ChoiceRow {
     pub answer_answered_at: Option<String>,
-    pub answer_consecutive_correct: Option<i64>,
+    pub answer_consecutive_correct: Option<i32>,
     pub answer_state: Option<String>,
     pub question_id: String,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Choice {
-    stage: i64,
+    stage: i32,
     pub answered_at: DateTime,
-    pub consecutive_correct: i64,
+    pub consecutive_correct: i32,
     pub question_id: String,
     pub state: State,
 }
@@ -195,7 +195,7 @@ impl Choice {
     pub fn new(
         question_id: &str,
         answered_at: DateTime,
-        consecutive_correct: i64,
+        consecutive_correct: i32,
         state: State,
     ) -> Self {
         Self {
@@ -207,8 +207,8 @@ impl Choice {
         }
     }
 
-    pub fn stage_from(consecutive_correct: i64) -> i64 {
-        let base: i64 = 2;
+    pub fn stage_from(consecutive_correct: i32) -> i32 {
+        let base: i32 = 2;
         base.pow(u32::try_from(consecutive_correct).unwrap_or(0))
     }
 
@@ -290,8 +290,8 @@ impl SpacedRepetition {
 
     fn available_at(&self, choice: &Choice) -> DateTime {
         let delta = match self.unit {
-            TimeUnit::Days => chrono::Duration::days(choice.stage),
-            TimeUnit::Minutes => chrono::Duration::minutes(choice.stage),
+            TimeUnit::Days => chrono::Duration::days(choice.stage.into()),
+            TimeUnit::Minutes => chrono::Duration::minutes(choice.stage.into()),
         };
         choice.answered_at.clone() + delta
     }
@@ -324,8 +324,8 @@ impl Strategy for SpacedRepetition {
 
     fn available_at(&self, choice: &Choice) -> DateTime {
         let delta = match self.unit {
-            TimeUnit::Minutes => chrono::Duration::minutes(choice.stage),
-            TimeUnit::Days => chrono::Duration::days(choice.stage),
+            TimeUnit::Minutes => chrono::Duration::minutes(choice.stage.into()),
+            TimeUnit::Days => chrono::Duration::days(choice.stage.into()),
         };
         choice.answered_at + delta
     }
@@ -336,7 +336,7 @@ mod tests {
     use super::*;
 
     #[allow(non_snake_case)]
-    fn C(id: &str, consecutive_correct: i64, answered_at: DateTime, state: State) -> Choice {
+    fn C(id: &str, consecutive_correct: i32, answered_at: DateTime, state: State) -> Choice {
         Choice::new(id, answered_at, consecutive_correct, state)
     }
 

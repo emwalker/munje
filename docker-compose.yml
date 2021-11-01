@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   munje:
-    image: munje
+    image: emwalker/munje
     build:
       context: .
       dockerfile: ./Dockerfile

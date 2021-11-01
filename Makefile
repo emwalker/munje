@@ -1,5 +1,9 @@
 image:
 	docker-compose build
+	docker tag emwalker/munje:latest emwalker/munje:$(shell cat k8s/release)
+
+push:
+	docker push emwalker/munje:$(shell cat k8s/release)
 
 start:
 	docker-compose --env-file=.env.docker.local up munje

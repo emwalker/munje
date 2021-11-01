@@ -5,7 +5,7 @@ use anyhow::Result;
 use askama::Template;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
-    cfg.service(home);
+    cfg.service(home).service(robots);
 }
 
 #[derive(Template)]
@@ -26,4 +26,14 @@ async fn home(messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
     .render()
     .unwrap();
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
+}
+
+#[derive(Template)]
+#[template(path = "robots.jinja")]
+struct Robots;
+
+#[get("/robots.txt")]
+async fn robots() -> Result<HttpResponse, Error> {
+    let s = Robots.render().unwrap();
+    Ok(HttpResponse::Ok().content_type("text/plain").body(s))
 }

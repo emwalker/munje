@@ -116,7 +116,7 @@ impl Runner {
                 db: self.db.clone(),
             }))
             .wrap(message_framework.clone())
-            .service(routes::home)
+            .configure(routes::register)
             .configure(questions::routes::register)
             .configure(queues::routes::register);
         let app = test::init_service(app).await;

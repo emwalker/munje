@@ -18,6 +18,14 @@ async fn home() -> TestResult {
 }
 
 #[actix_rt::test]
+async fn robots() -> TestResult {
+    let res = Runner::new().await.get("/robots.txt").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!("User-agent: * Disallow: /", res.doc.to_string());
+    Ok(())
+}
+
+#[actix_rt::test]
 async fn list_questions() -> TestResult {
     let res = Runner::new().await.get("/questions").await?;
     assert_eq!(res.status, http::StatusCode::OK);

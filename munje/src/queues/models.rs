@@ -3,43 +3,47 @@ use chrono;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use uuid::Uuid;
 
-use crate::questions::{Question, QuestionRow};
-use crate::queues::{
-    choosers,
-    choosers::{Choice, ChoiceRow, Strategy},
+use crate::{
+    models::Creatable,
+    questions::{Question, QuestionRow},
+    queues::{
+        choosers,
+        choosers::{Choice, ChoiceRow, Strategy},
+    },
+    types::{DateTime, Markdown, Pool},
 };
-use crate::types::{DateTime, Markdown, Pool};
 
 #[derive(Serialize, Debug, Deserialize, Clone)]
 pub struct CreateQueue {
     pub description: String,
-    pub starting_question_id: String,
+    pub starting_question_external_id: String,
     pub title: String,
-    pub user_id: String,
+    pub user_id: i64,
 }
 
-#[derive(Debug, Serialize, FromRow)]
+#[derive(Debug, FromRow)]
 pub struct QueueRow {
-    pub created_at: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub description: Option<String>,
-    pub id: String,
-    pub starting_question_id: String,
-    pub title: Option<String>,
-    pub updated_at: String,
-    pub user_id: String,
+    pub external_id: String,
+    pub id: i64,
+    pub starting_question_id: i64,
+    pub title: String,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub user_id: i64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct Queue {
     pub created_at: DateTime,
-    pub description: Markdown,
-    pub id: String,
-    pub starting_question_id: String,
+    pub description: Option<Markdown>,
+    pub external_id: String,
+    pub id: i64,
+    pub starting_question_id: i64,
     pub title: String,
     pub updated_at: DateTime,
-    pub user_id: String,
+    pub user_id: i64,
 }
 
 pub struct UpsertResult<T> {
@@ -52,16 +56,28 @@ pub struct NextQuestion {
     next_available_at: DateTime,
 }
 
-#[derive(Debug, Serialize, FromRow)]
-pub struct Answer {
-    pub consecutive_correct: Option<i32>,
-    pub answered_at: Option<String>,
-    pub created_at: String,
-    pub id: String,
-    pub question_id: String,
-    pub queue_id: String,
+#[derive(Debug, FromRow)]
+pub struct AnswerRow {
+    pub answered_at: chrono::DateTime<chrono::Utc>,
+    pub consecutive_correct: i32,
+    pub external_id: String,
+    pub id: i64,
+    pub question_id: i64,
+    pub queue_id: i64,
     pub state: String,
-    pub user_id: String,
+    pub user_id: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Answer {
+    pub answered_at: DateTime,
+    pub consecutive_correct: i32,
+    pub external_id: String,
+    pub id: i64,
+    pub question_id: i64,
+    pub queue_id: i64,
+    pub state: String,
+    pub user_id: i64,
 }
 
 pub struct QueueAnswer {
@@ -72,126 +88,137 @@ pub struct QueueAnswer {
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct WideAnswer {
-    pub answer_id: String,
+    pub answer_id: i64,
     pub answer_state: String,
-    pub answer_answered_at: Option<String>,
-    pub answer_consecutive_correct: Option<i32>,
+    pub answer_answered_at: chrono::DateTime<chrono::Utc>,
+    pub answer_consecutive_correct: i32,
     pub question_title: String,
     pub question_text: String,
     pub question_link: Option<String>,
-    pub question_id: String,
-    pub queue_id: String,
+    pub question_id: i64,
+    pub queue_id: i64,
 }
 
 #[derive(Debug)]
 pub struct AnswerQuestion {
-    pub question_id: String,
-    pub queue_id: String,
+    pub question_external_id: String,
+    pub queue_id: i64,
     pub state: String,
-    pub user_id: String,
+    pub user_id: i64,
 }
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct LastAnswer {
-    pub answer_id: String,
+    pub answer_id: i64,
     pub answer_state: String,
-    pub answer_answered_at: String,
+    pub answer_answered_at: chrono::DateTime<chrono::Utc>,
     pub answer_consecutive_correct: i32,
-    pub created_at: String,
-    pub id: String,
-    pub question_id: String,
-    pub queue_id: String,
-    pub updated_at: String,
-    pub user_id: String,
+    pub created_at: chrono::DateTime<Utc>,
+    pub id: i64,
+    pub question_id: i64,
+    pub queue_id: i64,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub user_id: i64,
 }
 
 pub struct UpsertLastAnswer {
-    pub answer_answered_at: String,
+    pub answer_answered_at: DateTime,
     pub answer_consecutive_correct: i32,
-    pub answer_id: String,
+    pub answer_id: i64,
     pub answer_state: String,
-    pub question_id: String,
-    pub queue_id: String,
-    pub user_id: String,
+    pub question_id: i64,
+    pub queue_id: i64,
+    pub user_id: i64,
 }
 
-trait Creatable {
-    fn id_and_timestamp() -> (String, String) {
-        let id = Uuid::new_v4().to_hyphenated().to_string();
-        let timestamp = Utc::now().to_rfc3339();
-        (id, timestamp)
+impl AnswerRow {
+    pub fn to_answer(&self) -> Answer {
+        Answer {
+            answered_at: DateTime(self.answered_at),
+            consecutive_correct: self.consecutive_correct,
+            external_id: self.external_id.clone(),
+            id: self.id,
+            question_id: self.question_id,
+            queue_id: self.queue_id,
+            state: self.state.clone(),
+            user_id: self.user_id,
+        }
     }
 }
 
-impl Creatable for Queue {}
+impl AnswerQuestion {
+    fn consecutive_correct(&self) -> i32 {
+        match self.state.as_ref() {
+            "correct" => 1,
+            _ => 0,
+        }
+    }
+}
 
 impl QueueRow {
     pub fn to_queue(&self) -> Queue {
         Queue {
-            created_at: DateTime::from(&self.created_at),
-            description: Markdown::from(
-                self.description
-                    .clone()
-                    .unwrap_or("Description of queue".to_string()),
-            ),
+            created_at: DateTime(self.created_at),
+            description: self.description.clone().map(|s| Markdown::from(s)),
+            external_id: self.external_id.to_string(),
             id: self.id.clone(),
             starting_question_id: self.starting_question_id.clone(),
-            title: self
-                .title
-                .clone()
-                .unwrap_or("Algorithms and data structures".to_string()),
-            updated_at: DateTime::from(&self.updated_at),
+            title: self.title.clone(),
+            updated_at: DateTime(self.updated_at),
             user_id: self.user_id.clone(),
         }
     }
 }
 
+impl Creatable for Queue {}
+
 impl Queue {
     pub async fn create(queue: CreateQueue, db: &Pool) -> Result<Self> {
-        let (id, timestamp) = Self::id_and_timestamp();
+        let question = Question::find(&queue.starting_question_external_id, db).await?;
+        let id = Self::next_id("queues_id_seq", db).await?;
 
         let title = "Algorithms and data structures";
         let description = "A queue of problems related to this question";
 
-        sqlx::query!(
+        let row = sqlx::query_as!(
+            QueueRow,
             "insert into queues
-                (id, user_id, title, description, starting_question_id, created_at, updated_at)
-                values ($1, $2, $3, $4, $5, $6, $7)",
-            id,
+                (id, external_id, user_id, title, description, starting_question_id)
+                values ($1, $2, $3, $4, $5, $6)
+                returning *",
+            id.internal_id(),
+            id.external_id(),
             queue.user_id,
             title,
             description,
-            queue.starting_question_id,
-            timestamp,
-            timestamp,
+            question.id,
         )
-        .execute(db)
+        .fetch_one(db)
         .await?;
 
-        Ok(Self {
-            id,
-            user_id: queue.user_id.clone(),
-            title: queue.title.clone(),
-            description: Markdown::from(queue.description.clone()),
-            starting_question_id: queue.starting_question_id.clone(),
-            created_at: DateTime::from(&timestamp),
-            updated_at: DateTime::from(&timestamp),
-        })
+        Ok(row.to_queue())
     }
 
-    pub async fn find(id: &str, db: &Pool) -> Result<Self> {
-        let row = sqlx::query_as!(QueueRow, "select * from queues where id = $1", id)
-            .fetch_one(db)
-            .await?;
+    pub async fn find(external_id: &str, db: &Pool) -> Result<Self> {
+        let row = sqlx::query_as!(
+            QueueRow,
+            "select * from queues where external_id = $1",
+            external_id
+        )
+        .fetch_one(db)
+        .await?;
         Ok(row.to_queue())
     }
 
     pub async fn find_or_create(queue: CreateQueue, db: &Pool) -> Result<UpsertResult<Self>> {
         let result = sqlx::query_as!(
             QueueRow,
-            "select * from queues where user_id = $1 and starting_question_id = $2",
+            "select qq.*
+             from queues qq
+             join questions q on q.id = qq.starting_question_id
+             where qq.user_id = $1 and q.external_id = $2",
             queue.user_id,
-            queue.starting_question_id,
+            queue.starting_question_external_id,
         )
         .fetch_optional(db)
         .await?;
@@ -211,9 +238,16 @@ impl Queue {
     }
 
     pub async fn answers(&self, db: &Pool) -> Result<Vec<Answer>> {
-        let answers = sqlx::query_as!(Answer, "select * from answers where queue_id = $1", self.id)
-            .fetch_all(db)
-            .await?;
+        let answers = sqlx::query_as!(
+            AnswerRow,
+            "select * from answers where queue_id = $1",
+            self.id
+        )
+        .fetch_all(db)
+        .await?
+        .iter()
+        .map(AnswerRow::to_answer)
+        .collect();
         Ok(answers)
     }
 
@@ -249,7 +283,7 @@ impl Queue {
 
         let next_question = match next_choice {
             Some(choice) => {
-                let question = Question::find(choice.question_id.to_string(), db).await?;
+                let question = Question::find_by_id(choice.question_id, db).await?;
                 info!("Found a next question: {:?}", question);
                 NextQuestion {
                     question: Some(question),
@@ -273,8 +307,6 @@ impl Queue {
         answer_question: AnswerQuestion,
         db: &Pool,
     ) -> Result<(), Error> {
-        let (_id, timestamp) = Self::id_and_timestamp();
-
         let answer = Answer::create_from(&answer_question, db).await?;
         let last_answer = LastAnswer::find_or_create(&answer, db).await?.record;
         let consecutive_correct = match answer_question.state.as_ref() {
@@ -285,7 +317,7 @@ impl Queue {
         let answer = answer
             .finalize(
                 answer_question.state.clone(),
-                timestamp,
+                DateTime::now(),
                 consecutive_correct,
                 db,
             )
@@ -299,13 +331,18 @@ impl Queue {
         let answers = sqlx::query_as!(
             WideAnswer,
             "select
-                a.id answer_id, a.state answer_state, a.question_id, q.title question_title,
-                q.text question_text, q.link question_link, a.queue_id,
+                a.id answer_id,
+                a.state answer_state,
+                a.question_id,
+                q.title question_title,
+                q.text question_text,
+                q.link question_link,
+                a.queue_id,
                 a.answered_at answer_answered_at,
                 a.consecutive_correct answer_consecutive_correct
              from answers a
              join questions q on a.question_id = q.id
-             where a.queue_id = $1 order by a.created_at desc limit 6",
+             where a.queue_id = $1 order by a.answered_at desc limit 6",
             self.id
         )
         .fetch_all(db)
@@ -317,65 +354,69 @@ impl Queue {
 impl Creatable for Answer {}
 
 impl Answer {
-    pub async fn find(answer_id: String, db: &Pool) -> Result<Self> {
-        let answer = sqlx::query_as!(Self, "select * from answers where id = $1", answer_id)
-            .fetch_one(db)
-            .await?;
-        Ok(answer)
+    pub async fn find(external_id: String, db: &Pool) -> Result<Self> {
+        let row = sqlx::query_as!(
+            AnswerRow,
+            "select * from answers where external_id = $1",
+            external_id,
+        )
+        .fetch_one(db)
+        .await?;
+
+        Ok(row.to_answer())
     }
 
     pub async fn create_from(answer: &AnswerQuestion, db: &Pool) -> Result<Self> {
-        let (id, timestamp) = Self::id_and_timestamp();
+        let id = Self::next_id("last_answers_id_seq", db).await?;
+        let question = Question::find(&answer.question_external_id, db).await?;
 
-        sqlx::query!(
+        let row = sqlx::query_as!(
+            AnswerRow,
             "insert into answers
-                (id, user_id, queue_id, question_id, state, created_at)
-                values ($1, $2, $3, $4, $5, $6)",
-            id,
+                (id, external_id, user_id, queue_id, question_id, state, answered_at,
+                 consecutive_correct)
+             values ($1, $2, $3, $4, $5, $6, $7, $8)
+             returning *",
+            id.internal_id(),
+            id.external_id(),
             answer.user_id,
             answer.queue_id,
-            answer.question_id,
+            question.id,
             answer.state,
-            timestamp,
+            DateTime::now().to_chrono(),
+            answer.consecutive_correct(),
         )
-        .execute(db)
+        .fetch_one(db)
         .await?;
-        info!("Answer {} created", id);
+        info!("Answer created: {:?}", id);
 
-        Ok(Self {
-            answered_at: None,
-            consecutive_correct: None,
-            created_at: timestamp.clone(),
-            id,
-            question_id: answer.question_id.clone(),
-            queue_id: answer.queue_id.clone(),
-            state: answer.state.to_string(),
-            user_id: answer.user_id.clone(),
-        })
+        Ok(row.to_answer())
     }
 
     pub async fn finalize(
         &self,
         state: String,
-        answered_at: String,
+        answered_at: DateTime,
         consecutive_correct: i32,
         db: &Pool,
     ) -> Result<Answer> {
-        sqlx::query!(
+        let row = sqlx::query_as!(
+            AnswerRow,
             "update answers set
                 state = $1,
                 answered_at = $2,
                 consecutive_correct = $3
-             where id = $4",
+             where id = $4
+             returning *",
             state,
-            answered_at,
+            answered_at.to_chrono(),
             consecutive_correct,
             self.id,
         )
-        .execute(db)
+        .fetch_one(db)
         .await?;
 
-        Ok(Self::find(self.id.clone(), db).await?)
+        Ok(row.to_answer())
     }
 
     pub async fn question(&self, db: &Pool) -> Result<Question> {
@@ -419,14 +460,11 @@ impl WideAnswer {
     }
 
     pub fn answered_at(&self) -> String {
-        self.answer_answered_at
-            .clone()
-            .map(|s| DateTime::from(&s).humanize())
-            .unwrap_or("now".to_string())
+        DateTime(self.answer_answered_at).humanize()
     }
 
     pub fn answer_stage(&self) -> i32 {
-        Choice::stage_from(self.answer_consecutive_correct.unwrap_or(0))
+        Choice::stage_from(self.answer_consecutive_correct)
     }
 }
 
@@ -463,64 +501,35 @@ impl LastAnswer {
     }
 
     async fn create_from(answer: &Answer, db: &Pool) -> Result<Self, Error> {
-        let (id, timestamp) = Self::id_and_timestamp();
-
-        let answered_at = answer.answered_at.clone().unwrap_or(timestamp.clone());
-        let consecutive_correct = answer.consecutive_correct.unwrap_or(0);
-
-        sqlx::query!(
+        let last_answer = sqlx::query_as!(
+            Self,
             "insert into last_answers
                 (
                     answer_answered_at,
                     answer_id,
                     answer_state,
                     answer_consecutive_correct,
-                    created_at,
-                    id,
                     question_id,
                     queue_id,
-                    updated_at,
                     user_id
                 )
-                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
-            answered_at,
+                values ($1, $2, $3, $4, $5, $6, $7)
+                returning *",
+            answer.answered_at.to_chrono(),
             answer.id,
             answer.state,
-            consecutive_correct,
-            timestamp,
-            id,
+            answer.consecutive_correct,
             answer.question_id,
             answer.queue_id,
-            timestamp,
             answer.user_id,
         )
-        .execute(db)
+        .fetch_one(db)
         .await?;
 
-        Ok(Self {
-            answer_id: answer.id.clone(),
-            answer_state: answer.state.clone(),
-            answer_answered_at: answered_at,
-            answer_consecutive_correct: 0,
-            created_at: timestamp.clone(),
-            id,
-            question_id: answer.question_id.clone(),
-            queue_id: answer.queue_id.clone(),
-            updated_at: timestamp,
-            user_id: answer.user_id.clone(),
-        })
+        Ok(last_answer)
     }
 
     async fn update(&self, answer: &Answer, db: &Pool) -> Result<()> {
-        let consecutive_correct = answer
-            .consecutive_correct
-            .clone()
-            .unwrap_or(self.answer_consecutive_correct);
-        let answered_at = answer
-            .answered_at
-            .clone()
-            .unwrap_or(self.answer_answered_at.clone());
-
         sqlx::query!(
             "update last_answers set
                 answer_id = $1,
@@ -529,9 +538,9 @@ impl LastAnswer {
                 answer_answered_at = $4
              where id = $5",
             answer.id,
-            consecutive_correct,
+            answer.consecutive_correct,
             answer.state,
-            answered_at,
+            answer.answered_at.to_chrono(),
             self.id
         )
         .execute(db)

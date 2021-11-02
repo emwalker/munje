@@ -16,7 +16,12 @@
           <div class="card-header-title">{{ queue.title }}</div>
         </a>
         <div class="card-content pt-0">
-          {{ queue.description.markdown()|safe }}
+          {% match queue.description %}
+            {% when Some with (description) %}
+              {{ description.markdown()|safe }}
+            {% else %}
+              No description.
+          {% endmatch %}
         </div>
       </div>
     {% endfor %}

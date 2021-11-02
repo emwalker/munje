@@ -21,11 +21,13 @@ pub enum TimeUnit {
     Minutes,
 }
 
+// The answer-related fields are Option, because they are taken from a left join against the
+// questions table.actix_http
 pub struct ChoiceRow {
-    pub answer_answered_at: Option<String>,
+    pub answer_answered_at: Option<chrono::DateTime<chrono::Utc>>,
     pub answer_consecutive_correct: Option<i32>,
     pub answer_state: Option<String>,
-    pub question_id: String,
+    pub question_id: i64,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -33,7 +35,7 @@ pub struct Choice {
     stage: i32,
     pub answered_at: DateTime,
     pub consecutive_correct: i32,
-    pub question_id: String,
+    pub question_id: i64,
     pub state: State,
 }
 
@@ -140,7 +142,7 @@ impl State {
                 "incorrect" => Self::Incorrect,
                 _ => Self::Unknown,
             },
-            None => Self::Unseen,
+            None => Self::Unknown,
         }
     }
 }
@@ -161,16 +163,11 @@ impl ChoiceRow {
     fn to_choice(&self, clock: &Clock) -> Choice {
         let state = State::from(self.answer_state.clone());
         let already = clock.ticks(-2).to_chrono();
-        let answered_at: chrono::DateTime<chrono::Utc> = match &self.answer_answered_at {
-            Some(string) => chrono::DateTime::parse_from_rfc3339(string)
-                .map(|dt| chrono::DateTime::from(dt))
-                .unwrap_or(already),
-            None => already,
-        };
+        let answered_at = self.answer_answered_at.unwrap_or(already);
         let consecutive_correct = self.answer_consecutive_correct.unwrap_or(0);
 
         Choice::new(
-            &self.question_id,
+            self.question_id,
             DateTime(answered_at),
             consecutive_correct,
             state,
@@ -185,7 +182,7 @@ impl fmt::Debug for ChoiceRow {
             "ChoiceRow {{ {} {} {} }}",
             self.question_id,
             self.answer_consecutive_correct.unwrap_or(0),
-            self.answer_state.clone().unwrap_or("None".to_string()),
+            self.answer_state.clone().unwrap_or("unknown".to_string()),
         )
     }
 }
@@ -193,15 +190,15 @@ impl fmt::Debug for ChoiceRow {
 impl Choice {
     #[allow(dead_code)]
     pub fn new(
-        question_id: &str,
+        question_id: i64,
         answered_at: DateTime,
         consecutive_correct: i32,
         state: State,
     ) -> Self {
         Self {
-            answered_at: answered_at,
+            answered_at,
             consecutive_correct,
-            question_id: question_id.to_string(),
+            question_id,
             stage: Self::stage_from(consecutive_correct),
             state,
         }
@@ -336,7 +333,7 @@ mod tests {
     use super::*;
 
     #[allow(non_snake_case)]
-    fn C(id: &str, consecutive_correct: i32, answered_at: DateTime, state: State) -> Choice {
+    fn C(id: i64, consecutive_correct: i32, answered_at: DateTime, state: State) -> Choice {
         Choice::new(id, answered_at, consecutive_correct, state)
     }
 
@@ -344,9 +341,9 @@ mod tests {
     fn random_choice() {
         let clock = Clock::new(TimeUnit::Days);
         let chooser = Random::new(vec![
-            C("1", 0, clock.ticks(0), State::Unseen),
-            C("2", 0, clock.ticks(0), State::Correct),
-            C("3", 0, clock.ticks(0), State::Incorrect),
+            C(1, 0, clock.ticks(0), State::Unseen),
+            C(2, 0, clock.ticks(0), State::Correct),
+            C(3, 0, clock.ticks(0), State::Incorrect),
         ]);
         assert_eq!(1, chooser.to_vec().iter().take(1).len());
     }
@@ -355,9 +352,9 @@ mod tests {
     fn next_question() {
         let clock = Clock::new(TimeUnit::Days);
         let chooser = Random::new(vec![
-            C("1", 0, clock.ticks(0), State::Unseen),
-            C("2", 0, clock.ticks(0), State::Correct),
-            C("3", 0, clock.ticks(0), State::Incorrect),
+            C(1, 0, clock.ticks(0), State::Unseen),
+            C(2, 0, clock.ticks(0), State::Correct),
+            C(3, 0, clock.ticks(0), State::Incorrect),
         ]);
         let (question, _) = chooser.next_question().unwrap();
         assert_ne!(None, question);
@@ -377,59 +374,59 @@ mod tests {
             TestCase {
                 name: "A simple case",
                 choices: vec![
-                    C("0", 0, clock.ticks(1), State::Unseen),
-                    C("1", 2, clock.ticks(-1), State::Correct),
-                    C("2", 0, clock.ticks(-2), State::Incorrect),
+                    C(0, 0, clock.ticks(1), State::Unseen),
+                    C(1, 2, clock.ticks(-1), State::Correct),
+                    C(2, 0, clock.ticks(-2), State::Incorrect),
                 ],
                 expected: (Some(2), clock.ticks(-1)),
             },
             TestCase {
                 name: "When a question is not ready to work on yet",
-                choices: vec![C("1", 2, clock.ticks(0), State::Correct)],
+                choices: vec![C(1, 2, clock.ticks(0), State::Correct)],
                 expected: (None, clock.ticks(4)),
             },
             TestCase {
                 name: "When there are several questions that are ready to work on",
                 choices: vec![
-                    C("0", 1, clock.ticks(-2), State::Correct),
-                    C("1", 2, clock.ticks(-3), State::Correct),
-                    C("2", 3, clock.ticks(-10), State::Correct),
+                    C(0, 1, clock.ticks(-2), State::Correct),
+                    C(1, 2, clock.ticks(-3), State::Correct),
+                    C(2, 3, clock.ticks(-10), State::Correct),
                 ],
                 expected: (Some(0), clock.ticks(0)),
             },
             TestCase {
                 name: "When there are several questions, none of which is ready to work on",
                 choices: vec![
-                    C("0", 1, clock.ticks(0), State::Correct),
-                    C("1", 2, clock.ticks(0), State::Correct),
-                    C("2", 3, clock.ticks(0), State::Correct),
+                    C(0, 1, clock.ticks(0), State::Correct),
+                    C(1, 2, clock.ticks(0), State::Correct),
+                    C(2, 3, clock.ticks(0), State::Correct),
                 ],
                 expected: (None, clock.ticks(2)),
             },
             TestCase {
                 name: "When there is more than one choice for the same question",
                 choices: vec![
-                    C("0", 1, clock.ticks(0), State::Correct),
-                    C("0", 0, clock.ticks(-1), State::Incorrect),
-                    C("0", 0, clock.ticks(-2), State::Incorrect),
+                    C(0, 1, clock.ticks(0), State::Correct),
+                    C(0, 0, clock.ticks(-1), State::Incorrect),
+                    C(0, 0, clock.ticks(-2), State::Incorrect),
                 ],
                 expected: (None, clock.ticks(2)),
             },
             TestCase {
                 name: "Another case where no questions are ready",
                 choices: vec![
-                    C("0", 1, clock.ticks(0), State::Correct),
-                    C("1", 1, clock.ticks(-1), State::Correct),
-                    C("2", 4, clock.ticks(-1), State::Correct),
+                    C(0, 1, clock.ticks(0), State::Correct),
+                    C(1, 1, clock.ticks(-1), State::Correct),
+                    C(2, 4, clock.ticks(-1), State::Correct),
                 ],
                 expected: (None, clock.ticks(1)),
             },
             TestCase {
                 name: "A third case where no questions are ready",
                 choices: vec![
-                    C("0", 1, clock.ticks(0), State::Correct),
-                    C("1", 1, clock.ticks(-1), State::Correct),
-                    C("2", 4, clock.ticks(-1), State::Correct),
+                    C(0, 1, clock.ticks(0), State::Correct),
+                    C(1, 1, clock.ticks(-1), State::Correct),
+                    C(2, 4, clock.ticks(-1), State::Correct),
                 ],
                 expected: (None, clock.ticks(1)),
             },
@@ -437,14 +434,14 @@ mod tests {
                 name: "When there are no answers in the queue yet",
                 choices: vec![
                     ChoiceRow {
-                        question_id: "0".to_string(),
+                        question_id: 0,
                         answer_answered_at: None,
                         answer_consecutive_correct: None,
                         answer_state: None,
                     }
                     .to_choice(&clock),
                     ChoiceRow {
-                        question_id: "1".to_string(),
+                        question_id: 1,
                         answer_answered_at: None,
                         answer_consecutive_correct: None,
                         answer_state: None,

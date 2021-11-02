@@ -132,16 +132,16 @@ impl error::ResponseError for ShowError {
     }
 }
 
-#[get("/questions/{id}")]
+#[get("/questions/{external_id}")]
 async fn show_or_new(
     state: Data<AppState>,
     path: Path<String>,
     messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, Error> {
-    let id = path.into_inner();
+    let external_id = path.into_inner();
     let messages = &Message::to_messages(&messages);
 
-    let s = match id.as_ref() {
+    let s = match external_id.as_ref() {
         "new" => {
             let form = &QuestionForm {
                 title: "".to_string(),
@@ -156,7 +156,7 @@ async fn show_or_new(
             .unwrap()
         }
         _ => {
-            let question = Question::find(id, &state.db)
+            let question = Question::find(&external_id, &state.db)
                 .await
                 .map_err(|error| ShowError {
                     message: format!("Problem fetching question: {}", error),
@@ -213,10 +213,10 @@ async fn create(state: Data<AppState>, form: Form<QuestionForm>) -> Result<HttpR
         form: form.clone(),
         message: format!("Problem fetching the logo: {}", error),
     })?;
-    let author_id = "21546b43-dcde-43b2-a251-e736194de0a0";
+    let author_id = 1;
 
     let question = CreateQuestion {
-        author_id: author_id.to_string(),
+        author_id,
         link: form.link.clone(),
         link_logo: page.meta_image().map(|url| url.to_string()),
         title: form.title.clone(),
@@ -224,7 +224,7 @@ async fn create(state: Data<AppState>, form: Form<QuestionForm>) -> Result<HttpR
     Question::create(question, &state.db)
         .await
         .map_err(|error| CreateError {
-            form: form,
+            form,
             message: format!("Problem saving the question: {}", error),
         })?;
     FlashMessage::info("Question created").send();
@@ -251,15 +251,15 @@ impl error::ResponseError for StartQueueError {
     }
 }
 
-#[post("/questions/{id}/queues")]
+#[post("/questions/{external_id}/queues")]
 async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpResponse, Error> {
-    let id = path.into_inner();
+    let external_id = path.into_inner();
 
     let queue = CreateQueue {
         description: "Questions related to algorithms and data structures".to_string(),
-        starting_question_id: id.clone(),
+        starting_question_external_id: external_id.clone(),
         title: "Algorithms and data strucures".to_string(),
-        user_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        user_id: 1,
     };
     let result = Queue::find_or_create(queue, &state.db)
         .await
@@ -273,7 +273,7 @@ async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpRe
     let redirect = HttpResponse::SeeOther()
         .append_header((
             http::header::LOCATION,
-            format!("/queues/{}", result.record.id),
+            format!("/queues/{}", result.record.external_id),
         ))
         .finish();
     Ok(redirect)

@@ -166,14 +166,14 @@ pub struct AnswerQuestionForm {
 }
 
 impl AnswerQuestionForm {
-    fn translated_state(&self, queue_id: String) -> Result<String, Error> {
+    fn translated_state(&self, queue_external_id: String) -> Result<String, Error> {
         let state = match self.state.as_ref() {
             "Correct" => Ok("correct"),
             "Incorrect" => Ok("incorrect"),
             "Too hard" => Ok("unsure"),
             other => Err(AnswerQuestionError {
                 message: format!("Incorrect state: {}", other),
-                queue_id,
+                queue_external_id,
             }),
         }?
         .to_string();
@@ -186,7 +186,7 @@ impl AnswerQuestionForm {
 #[display(fmt = "There was a problem")]
 struct AnswerQuestionError {
     message: String,
-    queue_id: String,
+    queue_external_id: String,
 }
 
 impl error::ResponseError for AnswerQuestionError {
@@ -194,48 +194,57 @@ impl error::ResponseError for AnswerQuestionError {
         error!("{}", self.message);
         FlashMessage::error(self.message.clone()).send();
         HttpResponse::SeeOther()
-            .append_header((http::header::LOCATION, format!("/queues/{}", self.queue_id)))
+            .append_header((
+                http::header::LOCATION,
+                format!("/queues/{}", self.queue_external_id),
+            ))
             .finish()
     }
 }
 
-#[post("/queues/{id}/questions/{question_id}")]
+#[post("/queues/{queue_id}/questions/{question_id}")]
 async fn answer_question(
     state: Data<AppState>,
     path: Path<(String, String)>,
     form: Form<AnswerQuestionForm>,
 ) -> Result<HttpResponse, Error> {
-    let (queue_id, question_id) = path.into_inner();
+    let (queue_external_id, question_external_id) = path.into_inner();
     let state = state.into_inner();
     let form = form.into_inner();
 
-    let queue = Queue::find(&queue_id, &state.db)
+    let queue = Queue::find(&queue_external_id, &state.db)
         .await
         .map_err(|error| AnswerQuestionError {
             message: format!("Problem fetching question: {}", error),
-            queue_id: queue_id.clone(),
+            queue_external_id: queue_external_id.clone(),
         })?;
-    let state_name = form.translated_state(queue_id.clone())?;
+    let state_name = form.translated_state(queue_external_id.clone())?;
 
-    info!(r#"Answering question {} as "{}"#, question_id, state_name);
+    info!(
+        r#"Answering question {} as "{}"#,
+        question_external_id, state_name
+    );
     queue
         .answer_question(
             AnswerQuestion {
-                question_id,
+                question_external_id: question_external_id.clone(),
                 state: state_name,
-                user_id: queue.user_id.clone(),
-                queue_id: queue_id.clone(),
+                user_id: queue.user_id,
+                queue_id: queue.id,
             },
             &state.db,
         )
         .await
         .map_err(|error| AnswerQuestionError {
             message: format!("Problem answering question: {}", error),
-            queue_id: queue_id.clone(),
+            queue_external_id: queue_external_id.clone(),
         })?;
 
     let redirect = HttpResponse::SeeOther()
-        .append_header((http::header::LOCATION, format!("/queues/{}", queue_id)))
+        .append_header((
+            http::header::LOCATION,
+            format!("/queues/{}", queue_external_id),
+        ))
         .finish();
     Ok(redirect)
 }

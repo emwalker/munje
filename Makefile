@@ -7,3 +7,6 @@ push:
 
 start:
 	docker-compose --env-file=.env.docker.local up munje
+
+proxy:
+	kubectl port-forward --namespace default svc/postgres-postgresql 5433:5432

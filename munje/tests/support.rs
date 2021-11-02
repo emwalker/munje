@@ -107,6 +107,16 @@ impl Runner {
         }
     }
 
+    pub async fn reset_database(&self) -> Result<()> {
+        sqlx::query(
+            "delete from last_answers;
+             delete from answers;",
+        )
+        .execute_many(&self.db)
+        .await;
+        Ok(())
+    }
+
     pub async fn get(&self, path: &str) -> Result<HttpResult, Error> {
         let message_store = CookieMessageStore::builder(self.signing_key.clone()).build();
         let message_framework = FlashMessagesFramework::builder(message_store).build();

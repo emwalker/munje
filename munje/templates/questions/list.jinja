@@ -7,7 +7,7 @@
   {% if questions.len() > 0 %}
     {% for question in questions %}
       <div class="card">
-        <a class="question-text" href="/questions/{{ question.id }}">
+        <a class="question-text" href="/questions/{{ question.external_id }}">
           <div class="card-header-title">{{ question.title }}</div>
         </a>
         <div class="card-content pt-0">

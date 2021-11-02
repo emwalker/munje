@@ -54,14 +54,14 @@ async fn show_unknown_question() -> TestResult {
 async fn show_question() -> TestResult {
     let runner = Runner::new().await;
     let question = CreateQuestion {
-        author_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        author_id: runner.user.id,
         title: "some-title".to_string(),
         link: "some-link".to_string(),
         link_logo: Some("logo-url".to_string()),
     };
 
     let question = Question::create(question, &runner.db).await?;
-    let path = format!("/questions/{}", question.id);
+    let path = format!("/questions/{}", question.external_id);
     let res = runner.get(&path).await?;
     assert_eq!(res.status, http::StatusCode::OK);
 
@@ -80,7 +80,7 @@ async fn show_question() -> TestResult {
 async fn start_queue() -> TestResult {
     let runner = Runner::new().await;
     let question = CreateQuestion {
-        author_id: "21546b43-dcde-43b2-a251-e736194de0a0".to_string(),
+        author_id: runner.user.id,
         title: "some-title".to_string(),
         link: "some-link".to_string(),
         link_logo: Some("logo-url".to_string()),
@@ -88,7 +88,7 @@ async fn start_queue() -> TestResult {
 
     let question = Question::create(question, &runner.db).await?;
     let req = test::TestRequest::post()
-        .uri(format!("/questions/{}/queues", question.id).as_ref())
+        .uri(format!("/questions/{}/queues", question.external_id).as_ref())
         .append_header(("Content-type", "application/x-www-form-urlencoded"))
         .to_request();
     let res = runner.post(req).await?;
@@ -103,7 +103,7 @@ async fn show_queue() -> TestResult {
 
     let question = Question::create(
         CreateQuestion {
-            author_id: runner.user.id.to_string(),
+            author_id: runner.user.id,
             title: "some-title".to_string(),
             link: "some-link".to_string(),
             link_logo: Some("logo-url".to_string()),
@@ -114,8 +114,8 @@ async fn show_queue() -> TestResult {
 
     let queue = Queue::find_or_create(
         CreateQueue {
-            user_id: runner.user.id.to_string(),
-            starting_question_id: question.id,
+            user_id: runner.user.id,
+            starting_question_external_id: question.external_id.clone(),
             title: "Algorithms and data structures".to_string(),
             description: "A queue".to_string(),
         },
@@ -124,7 +124,7 @@ async fn show_queue() -> TestResult {
     .await?
     .record;
 
-    let path = format!("/queues/{}", queue.id);
+    let path = format!("/queues/{}", queue.external_id);
     let res = runner.get(&path).await?;
     assert_eq!(res.status, http::StatusCode::OK);
     assert!(res.doc.css(".card")?.exists());
@@ -134,10 +134,11 @@ async fn show_queue() -> TestResult {
 #[actix_rt::test]
 async fn answer_question() -> TestResult {
     let runner = Runner::new().await;
+    runner.reset_database().await?;
 
     let question = Question::create(
         CreateQuestion {
-            author_id: runner.user.id.to_string(),
+            author_id: runner.user.id,
             title: "some-title".to_string(),
             link: "some-link".to_string(),
             link_logo: Some("logo-url".to_string()),
@@ -148,8 +149,8 @@ async fn answer_question() -> TestResult {
 
     let queue = Queue::find_or_create(
         CreateQueue {
-            user_id: runner.user.id.to_string(),
-            starting_question_id: question.id.clone(),
+            user_id: runner.user.id,
+            starting_question_external_id: question.external_id.clone(),
             title: "Algorithms and data structures".to_string(),
             description: "A queue".to_string(),
         },
@@ -163,7 +164,13 @@ async fn answer_question() -> TestResult {
     });
 
     let req = test::TestRequest::post()
-        .uri(format!("/queues/{}/questions/{}", queue.id, question.id).as_ref())
+        .uri(
+            format!(
+                "/queues/{}/questions/{}",
+                queue.external_id, question.external_id
+            )
+            .as_ref(),
+        )
         .append_header(("Content-type", "application/x-www-form-urlencoded"))
         .set_form(&form)
         .to_request();

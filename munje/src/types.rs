@@ -3,6 +3,7 @@ use chrono;
 use chrono_humanize::HumanTime;
 use comrak::{markdown_to_html, ComrakOptions};
 use envy;
+use harsh;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::ops::{Add, Sub};
@@ -141,5 +142,41 @@ impl Config {
         dotenv::dotenv().ok();
 
         envy::from_env::<Self>()
+    }
+}
+
+#[derive(Debug)]
+pub struct Id(pub i64);
+
+impl Id {
+    const SALT: &'static str = "
+    We can easily forgive a child who is afraid of the dark; the real tragedy of life is when men
+    are afraid of the light.";
+
+    pub fn internal_id(&self) -> i64 {
+        self.0
+    }
+
+    pub fn external_id(&self) -> String {
+        let ids = harsh::Harsh::builder().salt(Self::SALT).build().unwrap();
+        let input = vec![self.0 as u64];
+        ids.encode(&input[..])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn internal_id() {
+        let id = Id(1);
+        assert_eq!(1, id.internal_id());
+    }
+
+    #[test]
+    fn external_id() {
+        let id = Id(1);
+        assert_eq!("LD".to_string(), id.external_id());
     }
 }

@@ -9,12 +9,12 @@
 
         {% when Some with (question) %}
           <div class="card-header-title">{{ question.title }}</div>
-          <div class="card-content" data-next-question-id="{{ question.id }}">
+          <div class="card-content" data-next-question-id="{{ question.external_id }}">
             <div class="markdown-body mb-5">
               {{ question.text.markdown()|safe }}
             </div>
             <form method="POST" class="has-text-centered"
-              action="/queues/{{ queue.id }}/questions/{{ question.id }}"
+              action="/queues/{{ queue.external_id }}/questions/{{ question.external_id }}"
             >
               <input class="button is-success is-medium is-light mr-6"
                 type="submit" name="state" value="Correct" />

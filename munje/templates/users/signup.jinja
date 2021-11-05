@@ -1,0 +1,66 @@
+{% extends "layout.jinja" %}
+{% block title %}Sign up – Munje{% endblock %}
+{% block body %}
+  <section>
+    <div class="columns">
+      <div class="column is-one-fifth"></div>
+      <div class="column">
+        Join Munje
+      </div>
+      <div class="column card">
+        <form class="card-content" action="/users/signup" method="POST">
+          <div class="field">
+            <label class="label">Username</label>
+            <div class="control has-icons-left has-icons-right">
+              <input class="input is-success" type="text" placeholder="Your username"
+                data-lpignore="true">
+              <span class="icon is-small is-left">
+                <i class="fas fa-user"></i>
+              </span>
+              <span class="icon is-small is-right">
+                <i class="fas fa-check"></i>
+              </span>
+            </div>
+            <p class="help is-success">This username is available</p>
+          </div>
+
+          <div class="field">
+            <label class="label">Password</label>
+            <div class="control has-icons-left has-icons-right">
+              <input class="input is-success" type="text" placeholder="Your password"
+                data-lpignore="true">
+              <span class="icon is-small is-left">
+                <i class="fas fa-lock"></i>
+              </span>
+              <span class="icon is-small is-right">
+                <i class="fas fa-check"></i>
+              </span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="label">Confirm password</label>
+            <div class="control has-icons-left has-icons-right">
+              <input class="input is-success" type="text" placeholder="Your password again"
+                data-lpignore="true">
+              <span class="icon is-small is-left">
+                <i class="fas fa-lock"></i>
+              </span>
+              <span class="icon is-small is-right">
+                <i class="fas fa-check"></i>
+              </span>
+            </div>
+          </div>
+
+          <input class="button is-primary mt-3" type="submit" value="Sign up">
+
+          <p class="is-size-7 mt-5">
+            By clicking “Sign up”, you agree to our <a>terms of service</a>, <a>privacy policy</a>
+            and <a>cookie policy</a>.
+          <p>
+        </form>
+      </div>
+      <div class="column is-one-fifth"></div>
+    </div>
+  </section>
+{% endblock %}

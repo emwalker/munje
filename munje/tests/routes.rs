@@ -190,3 +190,19 @@ async fn list_queues() -> TestResult {
     );
     Ok(())
 }
+
+#[actix_rt::test]
+async fn user_signup() -> TestResult {
+    let res = Runner::new().await.get("/users/signup").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!(
+        Some("Sign up"),
+        res.doc
+            .css("input[type=submit]")?
+            .first()
+            .unwrap()
+            .value()
+            .attr("value")
+    );
+    Ok(())
+}

@@ -127,6 +127,7 @@ impl Runner {
             }))
             .wrap(message_framework.clone())
             .configure(routes::register)
+            .configure(users::routes::register)
             .configure(questions::routes::register)
             .configure(queues::routes::register);
         let app = test::init_service(app).await;

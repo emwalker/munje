@@ -8,6 +8,7 @@ use anyhow::Result;
 use munje::{
     questions, queues, routes,
     types::{AppState, Config},
+    users,
 };
 use sqlx::postgres::PgPoolOptions;
 
@@ -40,6 +41,7 @@ async fn main() -> Result<()> {
             .wrap(middleware::NormalizePath::trim())
             .wrap(message_framework(&config.session_key))
             .configure(routes::register)
+            .configure(users::routes::register)
             .configure(questions::routes::register)
             .configure(queues::routes::register)
     })

@@ -12,7 +12,7 @@
   {% if queues.len() > 0 %}
     {% for queue in queues %}
       <div class="card">
-        <a class="question-text" href="/queues/{{ queue.id }}">
+        <a class="question-text" href="/queues/{{ queue.external_id }}">
           <div class="card-header-title">{{ queue.title }}</div>
         </a>
         <div class="card-content pt-0">

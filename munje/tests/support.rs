@@ -108,12 +108,13 @@ impl Runner {
     }
 
     pub async fn reset_database(&self) -> Result<()> {
-        sqlx::query(
-            "delete from last_answers;
-             delete from answers;",
-        )
-        .execute_many(&self.db)
-        .await;
+        sqlx::query("delete from last_answers")
+            .execute(&self.db)
+            .await?;
+        sqlx::query("delete from answers").execute(&self.db).await?;
+        sqlx::query("delete from users where handle <> 'gnusto'")
+            .execute(&self.db)
+            .await?;
         Ok(())
     }
 
@@ -157,6 +158,7 @@ impl Runner {
                 db: self.db.clone(),
             }))
             .wrap(message_framework.clone())
+            .configure(users::routes::register)
             .configure(questions::routes::register)
             .configure(queues::routes::register);
 

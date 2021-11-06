@@ -1,5 +1,50 @@
 {
   "db": "PostgreSQL",
+  "01fbaf63a082d6ecf164c3f50e708655314682a8dae1aef1a2222276f66df995": {
+    "query": "insert into users (handle, hashed_password) values ($1, $2)\n             returning *",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 1,
+          "name": "handle",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "hashed_password",
+          "type_info": "Text"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Varchar",
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "08b69a79ef6c652bb9394a87496cff25e365522f4218076a124372a37fc01835": {
     "query": "select qq.*\n             from queues qq\n             join questions q on q.id = qq.starting_question_id\n             where qq.user_id = $1 and q.external_id = $2",
     "describe": {

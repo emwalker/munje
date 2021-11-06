@@ -5,6 +5,7 @@ use munje::{
     questions::{CreateQuestion, Question},
     queues::routes::AnswerQuestionForm,
     queues::{CreateQueue, Queue},
+    users::routes::RegisterUserForm,
 };
 
 use crate::support::{Runner, TestResult};
@@ -204,5 +205,27 @@ async fn user_signup() -> TestResult {
             .value()
             .attr("value")
     );
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn create_user() -> TestResult {
+    let runner = Runner::new().await;
+    runner.reset_database().await?;
+
+    let form = web::Form(RegisterUserForm {
+        handle: "frotz".to_string(),
+        password: "Password1".to_string(),
+        password_confirmation: "Password1".to_string(),
+    });
+
+    let req = test::TestRequest::post()
+        .uri("/users/signup")
+        .append_header(("Content-type", "application/x-www-form-urlencoded"))
+        .set_form(&form)
+        .to_request();
+    let res = runner.post(req).await?;
+
+    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
     Ok(())
 }

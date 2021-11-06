@@ -4,6 +4,11 @@ use sqlx::postgres::PgRow;
 
 use crate::types::{Id, Pool};
 
+pub struct UpsertResult<T> {
+    pub record: T,
+    pub created: bool,
+}
+
 #[async_trait]
 pub trait Creatable {
     async fn next_id(sequence_name: &str, db: &Pool) -> Result<Id> {

@@ -9,6 +9,7 @@ use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::queues::{AnswerQuestion, NextQuestion, Queue, WideAnswer};
+use crate::routes::redirect_to;
 use crate::types::{AppState, CurrentPage, Message};
 use crate::users::User;
 
@@ -80,9 +81,7 @@ impl error::ResponseError for ListError {
     fn error_response(&self) -> HttpResponse {
         error!("{}", self.message);
         FlashMessage::error(self.message.clone()).send();
-        HttpResponse::SeeOther()
-            .append_header((http::header::LOCATION, "/questions"))
-            .finish()
+        redirect_to("/questions".to_string())
     }
 }
 
@@ -193,12 +192,7 @@ impl error::ResponseError for AnswerQuestionError {
     fn error_response(&self) -> HttpResponse {
         error!("{}", self.message);
         FlashMessage::error(self.message.clone()).send();
-        HttpResponse::SeeOther()
-            .append_header((
-                http::header::LOCATION,
-                format!("/queues/{}", self.queue_external_id),
-            ))
-            .finish()
+        redirect_to(format!("/queues/{}", self.queue_external_id))
     }
 }
 

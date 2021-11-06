@@ -62,7 +62,7 @@ impl CurrentPage {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
 pub struct DateTime(pub chrono::DateTime<chrono::Utc>);
 
 impl DateTime {

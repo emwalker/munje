@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 use crate::{
-    models::Creatable,
+    models::{Creatable, UpsertResult},
     questions::{Question, QuestionRow},
     queues::{
         choosers,
@@ -44,11 +44,6 @@ pub struct Queue {
     pub title: String,
     pub updated_at: DateTime,
     pub user_id: i64,
-}
-
-pub struct UpsertResult<T> {
-    pub record: T,
-    pub created: bool,
 }
 
 pub struct NextQuestion {

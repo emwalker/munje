@@ -164,20 +164,18 @@ async fn answer_question() -> TestResult {
         state: "Correct".to_string(),
     });
 
+    let uri = format!(
+        "/queues/{}/questions/{}",
+        queue.external_id, question.external_id
+    );
+
     let req = test::TestRequest::post()
-        .uri(
-            format!(
-                "/queues/{}/questions/{}",
-                queue.external_id, question.external_id
-            )
-            .as_ref(),
-        )
-        .append_header(("Content-type", "application/x-www-form-urlencoded"))
+        .uri(uri.as_ref())
         .set_form(&form)
         .to_request();
     let res = runner.post(req).await?;
 
-    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
+    assert_eq!(res.status, http::StatusCode::FOUND);
     Ok(())
 }
 
@@ -232,6 +230,6 @@ async fn create_user() -> TestResult {
         .to_request();
     let res = runner.post(req).await?;
 
-    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
+    assert_eq!(res.status, http::StatusCode::FOUND);
     Ok(())
 }

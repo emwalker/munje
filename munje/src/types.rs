@@ -92,6 +92,12 @@ impl Sub<DateTime> for DateTime {
     }
 }
 
+impl Default for DateTime {
+    fn default() -> Self {
+        Self::now()
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct Markdown {
     text: String,

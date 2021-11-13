@@ -1,16 +1,16 @@
 use actix_web::{
     get, post, web,
     web::{Data, Form},
-    HttpResponse,
 };
 use anyhow::Result;
 use askama::Template;
 
 use crate::{
-    errors::Error,
-    routes::redirect_to,
+    error::Error,
+    mutations::RegisterUser,
+    prelude::*,
+    request::Authentication,
     types::{AppState, CurrentPage, Message},
-    users::mutations::RegisterUser,
 };
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -47,9 +47,14 @@ async fn signup() -> Result<HttpResponse, Error> {
 async fn create_user(
     form: Form<RegisterUser>,
     state: Data<AppState>,
+    request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
-    let mut mutation = form.into_inner();
+    if request.is_authenticated()? {
+        let user = request.user()?;
+        return request.redirect(format!("/{}/queues", user.handle).as_ref());
+    }
 
+    let mut mutation = form.into_inner();
     if !mutation.validate() {
         let s = Signup {
             messages: Message::none(),
@@ -62,5 +67,5 @@ async fn create_user(
     }
 
     mutation.call(&state.db).await?;
-    Ok(redirect_to(format!("/{}/queues", mutation.handle.value)))
+    request.redirect(format!("/{}/queues", mutation.handle.value).as_ref())
 }

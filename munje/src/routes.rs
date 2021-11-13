@@ -1,16 +1,10 @@
 use crate::types::{CurrentPage, Message};
-use actix_web::{get, http, web, Error, HttpResponse};
+use actix_web::{get, web, Error, HttpResponse};
 use anyhow::Result;
 use askama::Template;
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(home).service(robots);
-}
-
-pub fn redirect_to(url: String) -> HttpResponse {
-    HttpResponse::SeeOther()
-        .append_header((http::header::LOCATION, url.as_str()))
-        .finish()
 }
 
 #[derive(Template)]

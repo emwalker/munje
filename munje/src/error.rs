@@ -4,9 +4,12 @@ use std::{error, fmt};
 
 #[derive(Debug)]
 pub enum Error {
+    ActixWeb(actix_web::error::Error),
     Anyhow(anyhow::Error),
     Database(sqlx::Error),
+    Generic(String),
     HashPasswordError(argon2::Error),
+    Json(serde_json::error::Error),
 }
 
 impl fmt::Display for Error {
@@ -18,9 +21,12 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
+            Error::ActixWeb(e) => Some(e),
             Error::Anyhow(e) => Some(e.root_cause()),
             Error::Database(e) => Some(e),
+            Error::Generic(_) => None,
             Error::HashPasswordError(e) => Some(e),
+            Error::Json(e) => Some(e),
         }
     }
 }
@@ -28,6 +34,12 @@ impl error::Error for Error {
 impl From<anyhow::Error> for Error {
     fn from(e: anyhow::Error) -> Self {
         Self::Anyhow(e)
+    }
+}
+
+impl From<actix_web::Error> for Error {
+    fn from(e: actix_web::Error) -> Self {
+        Self::ActixWeb(e)
     }
 }
 
@@ -40,6 +52,12 @@ impl From<sqlx::Error> for Error {
 impl From<argon2::Error> for Error {
     fn from(e: argon2::Error) -> Self {
         Self::HashPasswordError(e)
+    }
+}
+
+impl From<serde_json::error::Error> for Error {
+    fn from(e: serde_json::error::Error) -> Self {
+        Self::Json(e)
     }
 }
 

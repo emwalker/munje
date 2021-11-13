@@ -5,14 +5,14 @@ use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    errors::Error,
+    error::Error,
     models::UpsertResult,
+    mutations::RegisterUser,
     queues::{Queue, QueueRow},
     types::{DateTime, Pool},
-    users::mutations::RegisterUser,
 };
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct User {
     pub id: i64,
     pub handle: String,
@@ -58,6 +58,10 @@ impl UserRow {
 }
 
 impl User {
+    pub fn guest() -> Self {
+        Self::default()
+    }
+
     pub async fn find_by_handle(handle: String, _db: &Pool) -> Result<Self> {
         let user = User {
             handle: handle.clone(),
@@ -70,13 +74,14 @@ impl User {
 
     pub async fn register(form: &RegisterUser, db: &Pool) -> Result<UpsertResult<Self>> {
         let password = form.password.value.clone();
+        let hashed_password = Password(password.to_string()).to_hash().unwrap();
 
         let row = sqlx::query_as!(
             UserRow,
             "insert into users (handle, hashed_password) values ($1, $2)
              returning *",
             form.handle.value.clone(),
-            Password(password.to_string()).to_hash()?,
+            hashed_password,
         )
         .fetch_one(db)
         .await?;

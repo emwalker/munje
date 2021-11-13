@@ -1,6 +1,5 @@
 use crate::types::{CurrentPage, Message};
 use actix_web::{get, http, web, Error, HttpResponse};
-use actix_web_flash_messages::IncomingFlashMessages;
 use anyhow::Result;
 use askama::Template;
 
@@ -22,9 +21,9 @@ struct Home<'a> {
 }
 
 #[get("/")]
-async fn home(messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
+async fn home() -> Result<HttpResponse, Error> {
     let s = Home {
-        messages: &Message::to_messages(&messages),
+        messages: &Message::none(),
         page: CurrentPage {
             path: "/".to_string(),
         },

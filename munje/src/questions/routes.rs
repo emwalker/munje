@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Form, Path},
     Error, HttpResponse,
 };
-use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use anyhow::Result;
 use askama::Template;
 use derive_more::{Display, Error};
@@ -60,10 +59,7 @@ impl error::ResponseError for ListError {
 }
 
 #[get("/questions")]
-async fn list(
-    state: Data<AppState>,
-    messages: IncomingFlashMessages,
-) -> Result<HttpResponse, Error> {
+async fn list(state: Data<AppState>) -> Result<HttpResponse, Error> {
     let questions = Question::find_all(&state.db)
         .await
         .map_err(|error| ListError {
@@ -72,7 +68,7 @@ async fn list(
 
     let s = List {
         questions: &questions,
-        messages: &Message::to_messages(&messages),
+        messages: &Message::none(),
         page: page(),
     }
     .render()
@@ -133,13 +129,9 @@ impl error::ResponseError for ShowError {
 }
 
 #[get("/questions/{external_id}")]
-async fn show_or_new(
-    state: Data<AppState>,
-    path: Path<String>,
-    messages: IncomingFlashMessages,
-) -> Result<HttpResponse, Error> {
+async fn show_or_new(state: Data<AppState>, path: Path<String>) -> Result<HttpResponse, Error> {
     let external_id = path.into_inner();
-    let messages = &Message::to_messages(&messages);
+    let messages = &Message::none();
 
     let s = match external_id.as_ref() {
         "new" => {
@@ -227,7 +219,6 @@ async fn create(state: Data<AppState>, form: Form<QuestionForm>) -> Result<HttpR
             form,
             message: format!("Problem saving the question: {}", error),
         })?;
-    FlashMessage::info("Question created").send();
 
     let redirect = HttpResponse::SeeOther()
         .append_header((http::header::LOCATION, "/questions"))
@@ -244,7 +235,6 @@ struct StartQueueError {
 impl error::ResponseError for StartQueueError {
     fn error_response(&self) -> HttpResponse {
         error!("There was a problem: {}", self.message);
-        FlashMessage::warning(self.message.clone()).send();
         HttpResponse::SeeOther()
             .append_header((http::header::LOCATION, "/questions"))
             .finish()
@@ -266,9 +256,6 @@ async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpRe
         .map_err(|error| StartQueueError {
             message: format!("Problem starting queue: {}", error),
         })?;
-    if result.created {
-        FlashMessage::info("New queue started").send();
-    }
 
     let redirect = HttpResponse::SeeOther()
         .append_header((

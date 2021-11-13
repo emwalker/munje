@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Form, Path},
     Error, HttpResponse,
 };
-use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use askama::Template;
 use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
@@ -80,20 +79,14 @@ struct ListError {
 impl error::ResponseError for ListError {
     fn error_response(&self) -> HttpResponse {
         error!("{}", self.message);
-        FlashMessage::error(self.message.clone()).send();
         redirect_to("/questions".to_string())
     }
 }
 
-// FIXME: /{user-handle}/queues
 #[get("/{handle}/queues")]
-async fn list(
-    state: Data<AppState>,
-    messages: IncomingFlashMessages,
-    path: Path<String>,
-) -> Result<HttpResponse, Error> {
+async fn list(state: Data<AppState>, path: Path<String>) -> Result<HttpResponse, Error> {
     let handle = path.into_inner();
-    let messages = Message::to_messages(&messages);
+    let messages = Message::none();
     let queues = User::find_by_handle(handle.clone(), &state.db)
         .await
         .map_err(|error| ListError {
@@ -118,13 +111,9 @@ async fn list(
 }
 
 #[get("/queues/{id}")]
-async fn show(
-    state: Data<AppState>,
-    path: Path<String>,
-    messages: IncomingFlashMessages,
-) -> Result<HttpResponse, Error> {
+async fn show(state: Data<AppState>, path: Path<String>) -> Result<HttpResponse, Error> {
     let id = path.into_inner();
-    let messages = &Message::to_messages(&messages);
+    let messages = &Message::none();
 
     let queue = &Queue::find(&id, &state.db)
         .await
@@ -191,7 +180,6 @@ struct AnswerQuestionError {
 impl error::ResponseError for AnswerQuestionError {
     fn error_response(&self) -> HttpResponse {
         error!("{}", self.message);
-        FlashMessage::error(self.message.clone()).send();
         redirect_to(format!("/queues/{}", self.queue_external_id))
     }
 }

@@ -3,7 +3,6 @@ use actix_web::{
     web::{Data, Form},
     Error, HttpResponse,
 };
-use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages};
 use anyhow::Result;
 use askama::Template;
 use derive_more::{Display, Error};
@@ -33,8 +32,8 @@ struct Signup<'a> {
 }
 
 #[get("/users/signup")]
-async fn signup(messages: IncomingFlashMessages) -> Result<HttpResponse, Error> {
-    let messages = Message::to_messages(&messages);
+async fn signup() -> Result<HttpResponse, Error> {
+    let messages = Message::none();
     let s = Signup {
         messages: &messages,
         page: page(),
@@ -59,9 +58,11 @@ struct RegistrationError {
 impl error::ResponseError for RegistrationError {
     fn error_response(&self) -> HttpResponse {
         error!("{}", self.message);
-        FlashMessage::error(self.message.clone()).send();
         let s = Signup {
-            messages: &vec![],
+            messages: &vec![Message {
+                content: self.message.clone(),
+                level: "error".to_string(),
+            }],
             page: page(),
         }
         .render()

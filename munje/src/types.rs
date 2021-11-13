@@ -1,4 +1,3 @@
-use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages, Level};
 use chrono;
 use chrono_humanize::HumanTime;
 use comrak::{markdown_to_html, ComrakOptions};
@@ -20,26 +19,8 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn to_messages<'a>(messages: &'a IncomingFlashMessages) -> Vec<Message> {
-        messages.iter().map(|message| Self::new(message)).collect()
-    }
-
-    pub fn new(message: &FlashMessage) -> Self {
-        Self {
-            content: message.content().to_string(),
-            level: Self::level_str(message),
-        }
-    }
-
-    fn level_str(message: &FlashMessage) -> String {
-        match message.level() {
-            Level::Debug => "debug",
-            Level::Info => "info",
-            Level::Success => "success",
-            Level::Warning => "warning",
-            Level::Error => "danger",
-        }
-        .to_string()
+    pub fn none() -> Vec<Message> {
+        vec![]
     }
 }
 

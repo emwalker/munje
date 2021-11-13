@@ -1,10 +1,8 @@
 #![allow(dead_code)]
 
 use actix_http::Request;
-use actix_web::cookie::Key;
 use actix_web::dev::Service;
-use actix_web::{cookie, http, test, web, App};
-use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework};
+use actix_web::{http, test, web, App};
 use anyhow::Error;
 use anyhow::Result;
 use munje::{
@@ -85,23 +83,16 @@ impl Document {
 pub struct Runner {
     pub db: Pool,
     pub user: users::User,
-    signing_key: cookie::Key,
 }
 
 impl Runner {
     pub async fn new() -> Self {
-        let signing_key = Key::generate(); // This will usually come from configuration!
-
         match Self::fetch_db().await {
             Ok(db) => {
                 let user = users::User::find_by_handle("gnusto".to_string(), &db)
                     .await
                     .unwrap();
-                Runner {
-                    db: db,
-                    user: user,
-                    signing_key,
-                }
+                Runner { db: db, user: user }
             }
             Err(err) => panic!("There was a problem: {}", err),
         }
@@ -119,14 +110,10 @@ impl Runner {
     }
 
     pub async fn get(&self, path: &str) -> Result<HttpResult, Error> {
-        let message_store = CookieMessageStore::builder(self.signing_key.clone()).build();
-        let message_framework = FlashMessagesFramework::builder(message_store).build();
-
         let app = App::new()
             .app_data(web::Data::new(AppState {
                 db: self.db.clone(),
             }))
-            .wrap(message_framework.clone())
             .configure(routes::register)
             .configure(users::routes::register)
             .configure(questions::routes::register)
@@ -150,14 +137,10 @@ impl Runner {
     }
 
     pub async fn post(&self, req: Request) -> Result<HttpResult, Error> {
-        let message_store = CookieMessageStore::builder(self.signing_key.clone()).build();
-        let message_framework = FlashMessagesFramework::builder(message_store).build();
-
         let app = App::new()
             .app_data(web::Data::new(AppState {
                 db: self.db.clone(),
             }))
-            .wrap(message_framework.clone())
             .configure(users::routes::register)
             .configure(questions::routes::register)
             .configure(queues::routes::register);

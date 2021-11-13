@@ -1,9 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use actix_web::cookie::Key;
 use actix_web::{middleware, web, App, HttpServer};
-use actix_web_flash_messages::{storage::CookieMessageStore, FlashMessagesFramework, Level};
 use anyhow::Result;
 use munje::{
     questions, queues, routes,
@@ -11,20 +9,6 @@ use munje::{
     users,
 };
 use sqlx::postgres::PgPoolOptions;
-
-fn message_framework(session_key: &String) -> FlashMessagesFramework {
-    let bytes = base64::decode(session_key).unwrap();
-    let signing_key = Key::derive_from(&bytes);
-    let store = CookieMessageStore::builder(signing_key).build();
-    // Show debug-level messages when developing locally
-    let minimum_level = match std::env::var("APP_ENV") {
-        Ok(s) if &s == "local" => Level::Debug,
-        _ => Level::Info,
-    };
-    FlashMessagesFramework::builder(store)
-        .minimum_level(minimum_level)
-        .build()
-}
 
 #[actix_web::main]
 async fn main() -> Result<()> {
@@ -39,7 +23,6 @@ async fn main() -> Result<()> {
             .app_data(web::Data::new(AppState { db: db.clone() }))
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath::trim())
-            .wrap(message_framework(&config.session_key))
             .configure(routes::register)
             .configure(users::routes::register)
             .configure(questions::routes::register)

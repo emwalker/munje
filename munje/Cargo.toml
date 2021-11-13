@@ -9,7 +9,6 @@ edition = "2018"
 actix-http = "3.0.0-beta.11"
 actix-rt = "2"
 actix-web = "4.0.0-beta"
-actix-web-flash-messages = { version = "0", features = ["cookies"] }
 anyhow = "1"
 rust-argon2 = "0"
 askama = "0"

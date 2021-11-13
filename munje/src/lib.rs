@@ -2,6 +2,8 @@
 extern crate log;
 extern crate base64;
 
+mod errors;
+pub mod forms;
 mod models;
 mod page;
 pub mod questions;

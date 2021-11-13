@@ -1,13 +1,15 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use argon2;
 use chrono;
 use derive_more::{Display, Error};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    errors::Error,
     models::UpsertResult,
     queues::{Queue, QueueRow},
     types::{DateTime, Pool},
+    users::mutations::RegisterUser,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -39,11 +41,7 @@ impl Password {
         use rand::Rng;
         let salt: [u8; 32] = rand::thread_rng().gen();
         let config = argon2::Config::default();
-        let hash = argon2::hash_encoded(self.0.as_bytes(), &salt, &config).map_err(|error| {
-            HashPasswordError {
-                details: format!("{}", error),
-            }
-        })?;
+        let hash = argon2::hash_encoded(self.0.as_bytes(), &salt, &config)?;
         Ok(hash)
     }
 }
@@ -70,12 +68,14 @@ impl User {
         Ok(user)
     }
 
-    pub async fn create(handle: String, password: String, db: &Pool) -> Result<UpsertResult<Self>> {
+    pub async fn register(form: &RegisterUser, db: &Pool) -> Result<UpsertResult<Self>> {
+        let password = form.password.value.clone();
+
         let row = sqlx::query_as!(
             UserRow,
             "insert into users (handle, hashed_password) values ($1, $2)
              returning *",
-            handle,
+            form.handle.value.clone(),
             Password(password.to_string()).to_hash()?,
         )
         .fetch_one(db)

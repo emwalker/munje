@@ -20,7 +20,16 @@ pub struct Message {
 
 impl Message {
     pub fn none() -> Vec<Message> {
-        vec![]
+        Vec::new()
+    }
+}
+
+impl Clone for Message {
+    fn clone(&self) -> Self {
+        Self {
+            content: self.content.clone(),
+            level: self.level.clone(),
+        }
     }
 }
 

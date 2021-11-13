@@ -13,43 +13,70 @@
             <label class="label">Username</label>
             <div class="control has-icons-left has-icons-right">
               <input class="input is-success" type="text" name="handle" placeholder="Your username"
-                data-lpignore="true">
+                data-lpignore="true" value="{{ form.handle.value }}">
               <span class="icon is-small is-left">
                 <i class="fas fa-user"></i>
               </span>
               <span class="icon is-small is-right">
-                <i class="fas fa-check"></i>
+                {% if form.handle.errors.len() > 0 %}
+                  <i class="fas fa-exclamation-triangle"></i>
+                {% else %}
+                  <i class="fas fa-check"></i>
+                {% endif %}
               </span>
             </div>
-            <p class="help is-success">This username is available</p>
+            {% if form.handle.errors.len() > 0 %}
+              {% for error in form.handle.errors %}
+                <p class="help is-danger">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
           </div>
 
           <div class="field">
             <label class="label">Password</label>
             <div class="control has-icons-left has-icons-right">
               <input class="input is-success" type="password" name="password"
-                placeholder="Your password" data-lpignore="true">
+                placeholder="Your password" data-lpignore="true" value="{{ form.password.value }}">
               <span class="icon is-small is-left">
                 <i class="fas fa-lock"></i>
               </span>
               <span class="icon is-small is-right">
-                <i class="fas fa-check"></i>
+                {% if form.password.errors.len() > 0 %}
+                  <i class="fas fa-exclamation-triangle"></i>
+                {% else %}
+                  <i class="fas fa-check"></i>
+                {% endif %}
               </span>
             </div>
+            {% if form.password.errors.len() > 0 %}
+              {% for error in form.password.errors %}
+                <p class="help is-danger">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
           </div>
 
           <div class="field">
             <label class="label">Confirm password</label>
             <div class="control has-icons-left has-icons-right">
               <input class="input is-success" type="password" name="password_confirmation"
-                placeholder="Your password again" data-lpignore="true">
+                placeholder="Your password again" data-lpignore="true"
+                value="{{ form.password_confirmation.value }}">
               <span class="icon is-small is-left">
                 <i class="fas fa-lock"></i>
               </span>
               <span class="icon is-small is-right">
-                <i class="fas fa-check"></i>
+                {% if form.password_confirmation.errors.len() > 0 %}
+                  <i class="fas fa-exclamation-triangle"></i>
+                {% else %}
+                  <i class="fas fa-check"></i>
+                {% endif %}
               </span>
             </div>
+            {% if form.password_confirmation.errors.len() > 0 %}
+              {% for error in form.password_confirmation.errors %}
+                <p class="help is-danger">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
           </div>
 
           <input class="button is-primary mt-3" type="submit" value="Sign up">

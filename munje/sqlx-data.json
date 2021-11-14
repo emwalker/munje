@@ -28,6 +28,11 @@
           "ordinal": 4,
           "name": "hashed_password",
           "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "last_login",
+          "type_info": "Timestamptz"
         }
       ],
       "parameters": {
@@ -41,7 +46,8 @@
         false,
         false,
         false,
-        false
+        false,
+        true
       ]
     }
   },
@@ -605,6 +611,18 @@
       ]
     }
   },
+  "34178bfa6cdf6b0249417d50d29c4c57c166c4e0fa0a06c5538f83844e9bb37d": {
+    "query": "update users set last_login = now() where id = $1",
+    "describe": {
+      "columns": [],
+      "parameters": {
+        "Left": [
+          "Int8"
+        ]
+      },
+      "nullable": []
+    }
+  },
   "54486f34550ca49ea455fe2595547418f4103305a7fb9163eb9912d796a72977": {
     "query": "update answers set\n                state = $1,\n                answered_at = $2,\n                consecutive_correct = $3\n             where id = $4\n             returning *",
     "describe": {
@@ -667,6 +685,56 @@
         false,
         false,
         false
+      ]
+    }
+  },
+  "5a2dc31cea85cd7536b848ef448a6a2db367373d44ac005e52c98ce36fcf3082": {
+    "query": "select * from users where handle = $1",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "created_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 1,
+          "name": "handle",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 3,
+          "name": "updated_at",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 4,
+          "name": "hashed_password",
+          "type_info": "Text"
+        },
+        {
+          "ordinal": 5,
+          "name": "last_login",
+          "type_info": "Timestamptz"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Text"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
       ]
     }
   },

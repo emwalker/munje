@@ -34,10 +34,10 @@
         Munje
       </a>
 
-      <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
-        <span aria-hidden="true"></span>
+      <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+        <span aria-hidden="true">Something</span>
+        <span aria-hidden="true">Something else</span>
+        <span aria-hidden="true">A third thing</span>
       </a>
     </div>
 
@@ -61,12 +61,18 @@
       <div class="navbar-end">
         <div class="navbar-item">
           <div class="buttons">
-            <a href="/users/signup" class="button is-primary">
-              <strong>Sign up</strong>
-            </a>
-            <a class="button is-light">
-              Log in
-            </a>
+            {% if page.is_authenticated() %}
+              <form method="POST" action="/users/logout">
+                <button class="button is-light" type="submit">Log out</button>
+              </form>
+            {% else %}
+              <a href="/users/signup" class="button is-primary">
+                <strong>Sign up</strong>
+              </a>
+              <a href="/users/login" class="button is-light">
+                Log in
+              </a>
+            {% endif %}
           </div>
         </div>
       </div>

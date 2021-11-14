@@ -1,0 +1,63 @@
+{% extends "layout.jinja" %}
+{% block title %}Sign up – Munje{% endblock %}
+{% block body %}
+  <section>
+    <div class="columns">
+      <div class="column is-one-third"></div>
+
+      <div class="column card">
+        <form class="card-content" action="/users/login" method="POST">
+          <div class="field">
+            <label class="label">Username</label>
+            <div class="control has-icons-left has-icons-right">
+              <input class="input is-success" type="text" name="handle" placeholder="Your username"
+                data-lpignore="true" value="{{ form.handle.value }}">
+              <span class="icon is-small is-left">
+                <i class="fas fa-user"></i>
+              </span>
+              <span class="icon is-small is-right">
+                {% if form.handle.errors.len() > 0 %}
+                  <i class="fas fa-exclamation-triangle"></i>
+                {% else %}
+                  <i class="fas fa-check"></i>
+                {% endif %}
+              </span>
+            </div>
+            {% if form.handle.errors.len() > 0 %}
+              {% for error in form.handle.errors %}
+                <p class="help is-danger">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <div class="field">
+            <label class="label">Password</label>
+            <div class="control has-icons-left has-icons-right">
+              <input class="input is-success" type="password" name="password"
+                placeholder="Your password" data-lpignore="true" value="{{ form.password.value }}">
+              <span class="icon is-small is-left">
+                <i class="fas fa-lock"></i>
+              </span>
+              <span class="icon is-small is-right">
+                {% if form.password.errors.len() > 0 %}
+                  <i class="fas fa-exclamation-triangle"></i>
+                {% else %}
+                  <i class="fas fa-check"></i>
+                {% endif %}
+              </span>
+            </div>
+            {% if form.password.errors.len() > 0 %}
+              {% for error in form.password.errors %}
+                <p class="help is-danger">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <input class="button is-primary mt-3" type="submit" value="Log in">
+        </form>
+      </div>
+
+      <div class="column is-one-third"></div>
+    </div>
+  </section>
+{% endblock %}

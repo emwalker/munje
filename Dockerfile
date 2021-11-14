@@ -1,7 +1,7 @@
 FROM rust:1.56.0-buster as builder
 WORKDIR /usr/src/munje
 COPY . .
-RUN cargo build --release
+RUN cargo build --release --features munje/production
 
 FROM debian:buster-slim
 LABEL Name=munje Version=0.0.1

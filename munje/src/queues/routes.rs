@@ -109,6 +109,10 @@ async fn answer_question(
     path: Path<(String, String, String)>,
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
+    if !request.is_authenticated()? {
+        return request.redirect("/");
+    }
+
     let (handle, queue_external_id, question_external_id) = path.into_inner();
     let form = form.into_inner();
     let queue = Queue::find(&queue_external_id, request.db()?).await?;

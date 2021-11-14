@@ -81,7 +81,8 @@ async fn show_question() -> TestResult {
         doc.css("span.title-span")?.first().unwrap().inner_html()
     );
     assert!(doc.css("span.link-logo")?.exists());
-    assert!(doc.css("button.start-queue")?.exists());
+    // User must be logged in
+    assert!(!doc.css("button.start-queue")?.exists());
     Ok(())
 }
 
@@ -212,6 +213,22 @@ async fn user_signup() -> TestResult {
             .unwrap()
             .value()
             .attr("value")
+    );
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn user_login() -> TestResult {
+    let res = Runner::new().await.get("/users/login").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!(
+        Some("Your username"),
+        res.doc
+            .css("input[type=text]")?
+            .first()
+            .unwrap()
+            .value()
+            .attr("placeholder")
     );
     Ok(())
 }

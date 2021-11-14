@@ -114,6 +114,10 @@ async fn fetch_page(link: &String) -> Result<Page> {
 
 #[post("/questions")]
 async fn create(form: Form<QuestionForm>, request: HttpRequest) -> Result<HttpResponse, Error> {
+    if !request.is_authenticated()? {
+        return request.redirect("/");
+    }
+
     let form = form.into_inner();
     let page = fetch_page(&form.link).await?;
 
@@ -130,6 +134,10 @@ async fn create(form: Form<QuestionForm>, request: HttpRequest) -> Result<HttpRe
 
 #[post("/questions/{external_id}/queues")]
 async fn start_queue(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, Error> {
+    if !request.is_authenticated()? {
+        return request.redirect("/");
+    }
+
     let external_id = path.into_inner();
     let user = request.user()?;
 

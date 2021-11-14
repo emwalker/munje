@@ -20,7 +20,9 @@
     {{ question.text.markdown()|safe }}
   </div>
 
-  <form method="POST" action="/questions/{{ question.external_id }}/queues">
-    <button class="button start-queue is-primary is-pulled-right">Start queue</button>
-  </form>
+  {% if page.is_authenticated() %}
+    <form method="POST" action="/questions/{{ question.external_id }}/queues">
+      <button class="button start-queue is-primary is-pulled-right">Start queue</button>
+    </form>
+  {% endif %}
 {% endblock %}

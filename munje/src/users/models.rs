@@ -7,28 +7,35 @@ use serde::{Deserialize, Serialize};
 use crate::{
     error::Error,
     models::UpsertResult,
-    mutations::RegisterUser,
+    mutations::{AuthenticateUser, RegisterUser},
     queues::{Queue, QueueRow},
     types::{DateTime, Pool},
 };
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct User {
-    pub id: i64,
-    pub handle: String,
     pub created_at: DateTime,
+    pub handle: String,
+    pub id: i64,
+    pub is_admin: bool,
+    pub is_anonymous: bool,
+    pub last_login: Option<DateTime>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub hashed_password: String,
     pub updated_at: DateTime,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UserRow {
-    pub id: i64,
+    pub created_at: chrono::DateTime<chrono::Utc>,
     pub handle: String,
     pub hashed_password: String,
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub id: i64,
+    pub last_login: Option<chrono::DateTime<chrono::Utc>>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug)]
 struct Password(String);
 
 #[derive(Debug, Display, Error)]
@@ -44,14 +51,22 @@ impl Password {
         let hash = argon2::hash_encoded(self.0.as_bytes(), &salt, &config)?;
         Ok(hash)
     }
+
+    fn verify(&self, password: &str) -> Result<bool, Error> {
+        Ok(argon2::verify_encoded(&self.0, password.as_bytes())?)
+    }
 }
 
 impl UserRow {
     fn to_user(&self) -> User {
         User {
-            id: self.id,
-            handle: self.handle.clone(),
             created_at: DateTime(self.created_at),
+            handle: self.handle.clone(),
+            hashed_password: self.hashed_password.clone(),
+            id: self.id,
+            is_admin: false,
+            is_anonymous: false,
+            last_login: self.last_login.map(|dt| DateTime(dt)),
             updated_at: DateTime(self.updated_at),
         }
     }
@@ -59,32 +74,32 @@ impl UserRow {
 
 impl User {
     pub fn guest() -> Self {
-        Self::default()
+        Self {
+            is_anonymous: true,
+            ..Self::default()
+        }
     }
 
     pub fn is_authenticated(&self) -> bool {
-        self.id != 0
+        !self.is_anonymous
     }
 
-    pub async fn find_by_handle(handle: String, _db: &Pool) -> Result<Self> {
-        let user = User {
-            handle: handle.clone(),
-            id: 1,
-            created_at: DateTime::now(),
-            updated_at: DateTime::now(),
-        };
-        Ok(user)
+    pub async fn find_by_handle(handle: String, db: &Pool) -> Result<Self> {
+        let row = sqlx::query_as!(UserRow, "select * from users where handle = $1", handle)
+            .fetch_one(db)
+            .await?;
+        Ok(row.to_user())
     }
 
-    pub async fn register(form: &RegisterUser, db: &Pool) -> Result<UpsertResult<Self>> {
-        let password = form.password.value.clone();
+    pub async fn register(mutation: &RegisterUser, db: &Pool) -> Result<UpsertResult<Self>> {
+        let password = mutation.password.value.clone();
         let hashed_password = Password(password.to_string()).to_hash().unwrap();
 
         let row = sqlx::query_as!(
             UserRow,
             "insert into users (handle, hashed_password) values ($1, $2)
              returning *",
-            form.handle.value.clone(),
+            mutation.handle.value.clone(),
             hashed_password,
         )
         .fetch_one(db)
@@ -95,6 +110,23 @@ impl User {
             created: true,
         };
         Ok(result)
+    }
+
+    pub async fn update_last_login(id: i64, db: &Pool) -> Result<(), Error> {
+        sqlx::query!("update users set last_login = now() where id = $1", id)
+            .execute(db)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn authenticate(mutation: &AuthenticateUser, db: &Pool) -> Result<User, Error> {
+        let user = Self::find_by_handle(mutation.handle.value.clone(), db).await?;
+        let password = Password(user.hashed_password.clone());
+        if !password.verify(&mutation.password.value)? {
+            return Err(Error::InvalidPassword);
+        }
+        Ok(user)
     }
 
     pub async fn queues(&self, db: &Pool) -> Result<Vec<Queue>> {

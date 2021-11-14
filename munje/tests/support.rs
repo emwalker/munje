@@ -140,6 +140,7 @@ impl Runner {
             .app_data(web::Data::new(AppState {
                 db: self.db.clone(),
             }))
+            .configure(routes::register)
             .configure(users::routes::register)
             .configure(questions::routes::register)
             .configure(queues::routes::register);
@@ -153,7 +154,7 @@ impl Runner {
     }
 
     async fn fetch_db() -> Result<Pool, Error> {
-        let config = Config::test()?;
+        let config = Config::test().expect("Failed to load test config");
         let result = PgPoolOptions::new()
             .max_connections(1)
             .connect(&config.database_url)

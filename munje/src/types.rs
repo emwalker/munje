@@ -24,6 +24,13 @@ impl Message {
     pub fn none() -> Vec<Message> {
         Vec::new()
     }
+
+    pub fn new(content: &str, level: &str) -> Self {
+        Self {
+            content: content.to_string(),
+            level: level.to_string(),
+        }
+    }
 }
 
 impl Clone for Message {
@@ -62,7 +69,7 @@ impl CurrentPage {
     }
 
     pub fn is_authenticated(&self) -> bool {
-        self.user.is_authenticated()
+        !self.user.is_anonymous
     }
 }
 
@@ -131,6 +138,7 @@ impl Markdown {
 pub struct Config {
     pub database_url: String,
     pub session_key: String,
+    pub session_domain: String,
     pub rust_log: String,
 }
 

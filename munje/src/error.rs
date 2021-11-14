@@ -11,6 +11,7 @@ pub enum Error {
     Anyhow(anyhow::Error),
     Config(envy::Error),
     Database(sqlx::Error),
+    InvalidPassword,
     Generic(String),
     HashPasswordError(argon2::Error),
     Json(serde_json::error::Error),
@@ -26,14 +27,15 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Error::ActixWeb(e) => Some(e),
-            Error::Anyhow(e) => Some(e.root_cause()),
-            Error::Config(e) => Some(e),
-            Error::Database(e) => Some(e),
-            Error::Generic(_) => None,
-            Error::HashPasswordError(e) => Some(e),
-            Error::Json(e) => Some(e),
-            Error::MigrationError(e) => Some(e),
+            Self::ActixWeb(e) => Some(e),
+            Self::Anyhow(e) => Some(e.root_cause()),
+            Self::Config(e) => Some(e),
+            Self::Database(e) => Some(e),
+            Self::Generic(_) => None,
+            Self::HashPasswordError(e) => Some(e),
+            Self::InvalidPassword => None,
+            Self::Json(e) => Some(e),
+            Self::MigrationError(e) => Some(e),
         }
     }
 }

@@ -8,6 +8,8 @@ services:
       dockerfile: ./Dockerfile
     environment:
     - DATABASE_URL
+    - SESSION_KEY
+    - SESSION_DOMAIN
     env_file:
     - .env.docker.local
     extra_hosts:

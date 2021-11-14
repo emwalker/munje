@@ -29,15 +29,22 @@ impl Authentication for HttpRequest {
             .is_some())
     }
 
-    fn set_user(&self, account: User) -> Result<(), Error> {
-        self.get_session().insert("user", account)?;
+    fn set_user(&self, user: User) -> Result<(), Error> {
+        info!("Setting user session for {}", user.handle);
+        self.get_session().insert("user", user)?;
         Ok(())
     }
 
     fn user(&self) -> Result<User, Error> {
         match self.get_session().get("user")? {
-            Some(user) => Ok(user),
-            None => Ok(User::guest()),
+            Some(user) => {
+                info!("User session found for {:?}", user);
+                Ok(user)
+            }
+            None => {
+                info!("No session found, page interaction will be anonymous");
+                Ok(User::guest())
+            }
         }
     }
 }

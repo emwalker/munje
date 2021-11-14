@@ -20,7 +20,7 @@ impl PasswordField {
 impl Validate for PasswordField {
     fn validate(&mut self) -> bool {
         if self.value == "" {
-            self.errors.push("Cannot be blank".to_string());
+            self.errors.push("Password cannot be empty".to_string());
             return false;
         }
 

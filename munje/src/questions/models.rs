@@ -1,4 +1,3 @@
-use anyhow::Result;
 use chrono;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -6,6 +5,7 @@ use sqlx::FromRow;
 
 use crate::{
     models::Creatable,
+    prelude::*,
     types::{DateTime, Markdown, Pool},
 };
 
@@ -60,7 +60,7 @@ impl QuestionRow {
 }
 
 impl Question {
-    pub async fn find_all(db: &Pool) -> Result<Vec<Self>> {
+    pub async fn find_all(db: &Pool) -> Result<Vec<Self>, Error> {
         let questions = sqlx::query_as!(
             QuestionRow,
             "select id, external_id, author_id, title, text, link, link_logo, created_at,
@@ -77,7 +77,7 @@ impl Question {
         Ok(questions)
     }
 
-    pub async fn find(external_id: &str, db: &Pool) -> Result<Self> {
+    pub async fn find(external_id: &str, db: &Pool) -> Result<Self, Error> {
         let row = sqlx::query_as!(
             QuestionRow,
             "select * from questions where external_id = $1",
@@ -88,14 +88,14 @@ impl Question {
         Ok(row.to_question())
     }
 
-    pub async fn find_by_id(id: i64, db: &Pool) -> Result<Self> {
+    pub async fn find_by_id(id: i64, db: &Pool) -> Result<Self, Error> {
         let row = sqlx::query_as!(QuestionRow, "select * from questions where id = $1", id)
             .fetch_one(db)
             .await?;
         Ok(row.to_question())
     }
 
-    pub async fn create(question: CreateQuestion, db: &Pool) -> Result<Self> {
+    pub async fn create(question: CreateQuestion, db: &Pool) -> Result<Self, Error> {
         let s = format!(
             "Complete the challenge at [this link]({}). When you're done, come back
              to this question and indicate whether you solved the problem.",

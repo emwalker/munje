@@ -26,11 +26,15 @@ struct Signup {
 }
 
 #[get("/users/signup")]
-async fn signup() -> Result<HttpResponse, Error> {
+async fn signup(request: HttpRequest) -> Result<HttpResponse, Error> {
+    if request.is_authenticated()? {
+        return request.redirect_home();
+    }
+
     let s = Signup {
         messages: Message::none(),
         form: RegisterUser::default(),
-        page: CurrentPage::from("/users"),
+        page: CurrentPage::from("/users", request.user()?),
     }
     .render()
     .unwrap();
@@ -52,7 +56,7 @@ async fn create_user(
         let s = Signup {
             messages: Message::none(),
             form: mutation,
-            page: CurrentPage::from("/users"),
+            page: CurrentPage::from("/users", request.user()?),
         }
         .render()
         .unwrap();

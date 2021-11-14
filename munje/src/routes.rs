@@ -3,6 +3,8 @@ use actix_web::{get, web, Error, HttpResponse};
 use anyhow::Result;
 use askama::Template;
 
+use crate::prelude::*;
+
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(home).service(overview).service(robots);
 }
@@ -15,10 +17,10 @@ struct Home {
 }
 
 #[get("/")]
-async fn home() -> Result<HttpResponse, Error> {
+async fn home(request: HttpRequest) -> Result<HttpResponse, Error> {
     let s = Home {
         messages: Message::none(),
-        page: CurrentPage::from("/"),
+        page: CurrentPage::from("/", request.user()?),
     }
     .render()
     .unwrap();
@@ -33,10 +35,10 @@ struct Overview {
 }
 
 #[get("/overview")]
-async fn overview() -> Result<HttpResponse, Error> {
+async fn overview(request: HttpRequest) -> Result<HttpResponse, Error> {
     let s = Overview {
         messages: Message::none(),
-        page: CurrentPage::from("/overview"),
+        page: CurrentPage::from("/overview", request.user()?),
     }
     .render()
     .unwrap();

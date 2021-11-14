@@ -1,6 +1,6 @@
 use actix_web::{
     get, post, web,
-    web::{Data, Form, Path},
+    web::{Form, Path},
 };
 use askama::Template;
 use serde::{Deserialize, Serialize};
@@ -8,18 +8,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     prelude::*,
     queues::{AnswerQuestion, NextQuestion, Queue, WideAnswer},
-    types::{AppState, CurrentPage, Message},
+    types::{CurrentPage, Message},
     users::User,
 };
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(show).service(answer_question).service(list);
-}
-
-fn page() -> CurrentPage {
-    CurrentPage {
-        path: "/gnusto/queues".to_string(),
-    }
 }
 
 #[derive(Template)]
@@ -48,17 +42,18 @@ struct List<'a> {
 }
 
 #[get("/{handle}/queues")]
-async fn list(state: Data<AppState>, path: Path<String>) -> Result<HttpResponse, Error> {
+async fn list(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, Error> {
     let handle = path.into_inner();
     let messages = Message::none();
-    let queues = User::find_by_handle(handle.clone(), &state.db)
+    let db = request.db()?;
+    let queues = User::find_by_handle(handle.clone(), db)
         .await?
-        .queues(&state.db)
+        .queues(db)
         .await?;
 
     let s = List {
         messages: &messages,
-        page: page(),
+        page: CurrentPage::from("/queues", request.user()?),
         queues: &queues,
     }
     .render()
@@ -66,19 +61,20 @@ async fn list(state: Data<AppState>, path: Path<String>) -> Result<HttpResponse,
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
-#[get("/queues/{id}")]
-async fn show(state: Data<AppState>, path: Path<String>) -> Result<HttpResponse, Error> {
-    let id = path.into_inner();
+#[get("/{handle}/queues/{id}")]
+async fn show(path: Path<(String, String)>, request: HttpRequest) -> Result<HttpResponse, Error> {
+    let (_handle, id) = path.into_inner();
     let messages = &Message::none();
+    let db = request.db()?;
 
-    let queue = &Queue::find(&id, &state.db).await?;
-    let next_question = queue.next_question(&state.db).await?;
-    let recent_answers = queue.recent_answers(&state.db).await?;
+    let queue = &Queue::find(&id, db).await?;
+    let next_question = queue.next_question(db).await?;
+    let recent_answers = queue.recent_answers(db).await?;
 
     let s = Show {
         queue,
         messages,
-        page: page(),
+        page: CurrentPage::from("/queues", request.user()?),
         next_question,
         recent_answers,
     }
@@ -107,13 +103,13 @@ impl AnswerQuestionForm {
     }
 }
 
-#[post("/queues/{queue_id}/questions/{question_id}")]
+#[post("/{handle}/queues/{queue_id}/questions/{question_id}")]
 async fn answer_question(
     form: Form<AnswerQuestionForm>,
-    path: Path<(String, String)>,
+    path: Path<(String, String, String)>,
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
-    let (queue_external_id, question_external_id) = path.into_inner();
+    let (handle, queue_external_id, question_external_id) = path.into_inner();
     let form = form.into_inner();
     let queue = Queue::find(&queue_external_id, request.db()?).await?;
     let state_name = form.translated_state()?;
@@ -134,5 +130,5 @@ async fn answer_question(
         )
         .await?;
 
-    request.redirect(format!("/queues/{}", queue_external_id).as_ref())
+    request.redirect(format!("/{}/queues/{}", handle, queue_external_id).as_ref())
 }

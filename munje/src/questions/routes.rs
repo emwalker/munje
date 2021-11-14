@@ -1,31 +1,27 @@
 use actix_web::{
-    error, get, http, post, web,
-    web::{Data, Form, Path},
-    Error, HttpResponse,
+    get, post, web,
+    web::{Form, Path},
 };
 use anyhow::Result;
 use askama::Template;
-use derive_more::{Display, Error};
 use reqwest;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::page::Page;
-use crate::questions::{CreateQuestion, Question};
-use crate::queues::{CreateQueue, Queue};
-use crate::types::{AppState, CurrentPage, Message};
+use crate::{
+    page::Page,
+    prelude::*,
+    questions::{CreateQuestion, Question},
+    queues::{CreateQueue, Queue},
+    types::{CurrentPage, Message},
+    users::User,
+};
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(list)
         .service(show_or_new)
         .service(create)
         .service(start_queue);
-}
-
-fn page() -> CurrentPage {
-    CurrentPage {
-        path: "/questions".to_string(),
-    }
 }
 
 #[derive(Template)]
@@ -36,40 +32,13 @@ struct List<'a> {
     page: CurrentPage,
 }
 
-#[derive(Debug, Display, Error)]
-#[display(fmt = "There was a problem")]
-struct ListError {
-    message: String,
-}
-
-impl error::ResponseError for ListError {
-    fn error_response(&self) -> HttpResponse {
-        let messages = vec![Message {
-            content: self.message.clone(),
-            level: "warning".to_string(),
-        }];
-        let s = NotFound {
-            messages: &messages,
-            page: page(),
-        }
-        .render()
-        .unwrap();
-        HttpResponse::Ok().content_type("text/html").body(s)
-    }
-}
-
 #[get("/questions")]
-async fn list(state: Data<AppState>) -> Result<HttpResponse, Error> {
-    let questions = Question::find_all(&state.db)
-        .await
-        .map_err(|error| ListError {
-            message: format!("Problem fetching questions: {}", error),
-        })?;
-
+async fn list(request: HttpRequest) -> Result<HttpResponse, Error> {
+    let questions = Question::find_all(request.db()?).await?;
     let s = List {
         questions: &questions,
         messages: &Message::none(),
-        page: page(),
+        page: CurrentPage::from("/questions", request.user()?),
     }
     .render()
     .unwrap();
@@ -99,39 +68,11 @@ struct Show<'a> {
     page: CurrentPage,
 }
 
-#[derive(Template)]
-#[template(path = "questions/not-found.jinja")]
-struct NotFound<'a> {
-    messages: &'a Vec<Message>,
-    page: CurrentPage,
-}
-
-#[derive(Debug, Display, Error)]
-#[display(fmt = "There was a problem")]
-struct ShowError {
-    message: String,
-}
-
-impl error::ResponseError for ShowError {
-    fn error_response(&self) -> HttpResponse {
-        let messages = vec![Message {
-            content: self.message.clone(),
-            level: "warning".to_string(),
-        }];
-        let s = NotFound {
-            messages: &messages,
-            page: page(),
-        }
-        .render()
-        .unwrap();
-        HttpResponse::Ok().content_type("text/html").body(s)
-    }
-}
-
 #[get("/questions/{external_id}")]
-async fn show_or_new(state: Data<AppState>, path: Path<String>) -> Result<HttpResponse, Error> {
+async fn show_or_new(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, Error> {
     let external_id = path.into_inner();
     let messages = &Message::none();
+    let user = request.user().unwrap_or(User::default());
 
     let s = match external_id.as_ref() {
         "new" => {
@@ -142,21 +83,18 @@ async fn show_or_new(state: Data<AppState>, path: Path<String>) -> Result<HttpRe
             New {
                 form,
                 messages,
-                page: page(),
+                page: CurrentPage::from("/questions", user),
             }
             .render()
             .unwrap()
         }
         _ => {
-            let question = Question::find(&external_id, &state.db)
-                .await
-                .map_err(|error| ShowError {
-                    message: format!("Problem fetching question: {}", error),
-                })?;
+            let db = request.db()?;
+            let question = Question::find(&external_id, db).await?;
             Show {
                 question: &question,
                 messages,
-                page: page(),
+                page: CurrentPage::from("/questions", user),
             }
             .render()
             .unwrap()
@@ -174,76 +112,26 @@ async fn fetch_page(link: &String) -> Result<Page> {
     Ok(page)
 }
 
-#[derive(Debug, Display, Error)]
-#[display(fmt = "There was a problem")]
-struct CreateError {
-    form: QuestionForm,
-    message: String,
-}
-
-impl error::ResponseError for CreateError {
-    fn error_response(&self) -> HttpResponse {
-        let messages = vec![Message {
-            content: self.message.clone(),
-            level: "warning".to_string(),
-        }];
-        let s = New {
-            form: &self.form,
-            messages: &messages,
-            page: page(),
-        }
-        .render()
-        .unwrap();
-        HttpResponse::Ok().content_type("text/html").body(s)
-    }
-}
-
 #[post("/questions")]
-async fn create(state: Data<AppState>, form: Form<QuestionForm>) -> Result<HttpResponse, Error> {
+async fn create(form: Form<QuestionForm>, request: HttpRequest) -> Result<HttpResponse, Error> {
     let form = form.into_inner();
-    let page = fetch_page(&form.link).await.map_err(|error| CreateError {
-        form: form.clone(),
-        message: format!("Problem fetching the logo: {}", error),
-    })?;
-    let author_id = 1;
+    let page = fetch_page(&form.link).await?;
 
     let question = CreateQuestion {
-        author_id,
+        author_id: request.user()?.id,
         link: form.link.clone(),
         link_logo: page.meta_image().map(|url| url.to_string()),
         title: form.title.clone(),
     };
-    Question::create(question, &state.db)
-        .await
-        .map_err(|error| CreateError {
-            form,
-            message: format!("Problem saving the question: {}", error),
-        })?;
+    Question::create(question, request.db()?).await?;
 
-    let redirect = HttpResponse::SeeOther()
-        .append_header((http::header::LOCATION, "/questions"))
-        .finish();
-    Ok(redirect)
-}
-
-#[derive(Debug, Display, Error)]
-#[display(fmt = "There was a problem starting a queue")]
-struct StartQueueError {
-    message: String,
-}
-
-impl error::ResponseError for StartQueueError {
-    fn error_response(&self) -> HttpResponse {
-        error!("There was a problem: {}", self.message);
-        HttpResponse::SeeOther()
-            .append_header((http::header::LOCATION, "/questions"))
-            .finish()
-    }
+    request.redirect("/questions")
 }
 
 #[post("/questions/{external_id}/queues")]
-async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpResponse, Error> {
+async fn start_queue(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, Error> {
     let external_id = path.into_inner();
+    let user = request.user()?;
 
     let queue = CreateQueue {
         description: "Questions related to algorithms and data structures".to_string(),
@@ -251,17 +139,8 @@ async fn start_queue(path: Path<String>, state: Data<AppState>) -> Result<HttpRe
         title: "Algorithms and data strucures".to_string(),
         user_id: 1,
     };
-    let result = Queue::find_or_create(queue, &state.db)
-        .await
-        .map_err(|error| StartQueueError {
-            message: format!("Problem starting queue: {}", error),
-        })?;
+    let result = Queue::find_or_create(queue, request.db()?).await?;
 
-    let redirect = HttpResponse::SeeOther()
-        .append_header((
-            http::header::LOCATION,
-            format!("/queues/{}", result.record.external_id),
-        ))
-        .finish();
-    Ok(redirect)
+    let path = format!("/{}/queues/{}", user.handle, result.record.external_id);
+    request.redirect(path.as_ref())
 }

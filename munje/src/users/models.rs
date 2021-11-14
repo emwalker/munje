@@ -62,6 +62,10 @@ impl User {
         Self::default()
     }
 
+    pub fn is_authenticated(&self) -> bool {
+        self.id != 0
+    }
+
     pub async fn find_by_handle(handle: String, _db: &Pool) -> Result<Self> {
         let user = User {
             handle: handle.clone(),

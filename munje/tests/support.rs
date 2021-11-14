@@ -3,9 +3,8 @@
 use actix_http::Request;
 use actix_web::dev::Service;
 use actix_web::{http, test, web, App};
-use anyhow::Error;
-use anyhow::Result;
 use munje::{
+    error::Error,
     questions, queues, routes,
     types::{AppState, Config, Pool},
     users,
@@ -71,7 +70,7 @@ impl Document {
         }
     }
 
-    pub fn css(&self, selector_str: &str) -> Result<Matches> {
+    pub fn css(&self, selector_str: &str) -> Result<Matches, Error> {
         let selector = Selector::parse(selector_str).unwrap();
         Ok(Matches {
             selector: selector.clone(),
@@ -98,7 +97,7 @@ impl Runner {
         }
     }
 
-    pub async fn reset_database(&self) -> Result<()> {
+    pub async fn reset_database(&self) -> Result<(), Error> {
         sqlx::query("delete from last_answers")
             .execute(&self.db)
             .await?;
@@ -153,7 +152,7 @@ impl Runner {
         })
     }
 
-    async fn fetch_db() -> Result<Pool> {
+    async fn fetch_db() -> Result<Pool, Error> {
         let config = Config::test()?;
         let result = PgPoolOptions::new()
             .max_connections(1)

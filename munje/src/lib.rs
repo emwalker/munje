@@ -2,7 +2,7 @@
 extern crate log;
 extern crate base64;
 
-mod error;
+pub mod error;
 pub mod forms;
 mod models;
 mod mutations;

@@ -53,9 +53,9 @@ async fn new_question() -> TestResult {
 #[actix_rt::test]
 async fn show_unknown_question() -> TestResult {
     let res = Runner::new().await.get("/questions/unknown").await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!(res.status, http::StatusCode::NOT_FOUND);
     let title = res.doc.select_text("title").unwrap();
-    assert_eq!("Question not found", title);
+    assert_eq!("Not found", title);
     Ok(())
 }
 
@@ -102,7 +102,7 @@ async fn start_queue() -> TestResult {
         .to_request();
     let res = runner.post(req).await?;
 
-    assert_eq!(res.status, http::StatusCode::SEE_OTHER);
+    assert_eq!(res.status, http::StatusCode::FOUND);
     Ok(())
 }
 
@@ -133,7 +133,7 @@ async fn show_queue() -> TestResult {
     .await?
     .record;
 
-    let path = format!("/queues/{}", queue.external_id);
+    let path = format!("/{}/queues/{}", runner.user.handle, queue.external_id);
     let res = runner.get(&path).await?;
     assert_eq!(res.status, http::StatusCode::OK);
     assert!(res.doc.css(".card")?.exists());
@@ -173,8 +173,8 @@ async fn answer_question() -> TestResult {
     });
 
     let uri = format!(
-        "/queues/{}/questions/{}",
-        queue.external_id, question.external_id
+        "/{}/queues/{}/questions/{}",
+        runner.user.handle, queue.external_id, question.external_id
     );
 
     let req = test::TestRequest::post()
@@ -189,7 +189,9 @@ async fn answer_question() -> TestResult {
 
 #[actix_rt::test]
 async fn list_queues() -> TestResult {
-    let res = Runner::new().await.get("/gnusto/queues").await?;
+    let runner = Runner::new().await;
+    let path = format!("/{}/queues", runner.user.handle);
+    let res = runner.get(path.as_ref()).await?;
     assert_eq!(res.status, http::StatusCode::OK);
     assert_eq!(
         "Queues you are working on",

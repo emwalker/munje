@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::ops::{Add, Sub};
 
+use crate::users::User;
+
 pub type Pool = PgPool;
 
 pub struct AppState {
@@ -36,12 +38,14 @@ impl Clone for Message {
 #[derive(Default)]
 pub struct CurrentPage {
     pub path: String,
+    pub user: User,
 }
 
 impl CurrentPage {
-    pub fn from(path: &str) -> Self {
+    pub fn from(path: &str, user: User) -> Self {
         Self {
             path: path.to_string(),
+            user,
         }
     }
 
@@ -55,6 +59,10 @@ impl CurrentPage {
         } else {
             ""
         }
+    }
+
+    pub fn is_authenticated(&self) -> bool {
+        self.user.is_authenticated()
     }
 }
 
@@ -180,5 +188,18 @@ mod tests {
     fn external_id() {
         let id = Id(1);
         assert_eq!("LD".to_string(), id.external_id());
+    }
+
+    #[test]
+    fn current_page_at() {
+        let page = CurrentPage::from("/path", User::guest());
+        assert!(page.at("/path"));
+        assert!(!page.at("/another-path"));
+    }
+
+    #[test]
+    fn current_page_is_authenticated() {
+        let page = CurrentPage::from("/path", User::guest());
+        assert!(!page.is_authenticated());
     }
 }

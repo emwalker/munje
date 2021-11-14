@@ -1,4 +1,3 @@
-use anyhow::{bail, Error, Result};
 use chrono;
 use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -6,6 +5,7 @@ use sqlx::FromRow;
 
 use crate::{
     models::{Creatable, UpsertResult},
+    prelude::*,
     questions::{Question, QuestionRow},
     queues::{
         choosers,
@@ -168,7 +168,7 @@ impl QueueRow {
 impl Creatable for Queue {}
 
 impl Queue {
-    pub async fn create(queue: CreateQueue, db: &Pool) -> Result<Self> {
+    pub async fn create(queue: CreateQueue, db: &Pool) -> Result<Self, Error> {
         let question = Question::find(&queue.starting_question_external_id, db).await?;
         let id = Self::next_id("queues_id_seq", db).await?;
 
@@ -194,7 +194,7 @@ impl Queue {
         Ok(row.to_queue())
     }
 
-    pub async fn find(external_id: &str, db: &Pool) -> Result<Self> {
+    pub async fn find(external_id: &str, db: &Pool) -> Result<Self, Error> {
         let row = sqlx::query_as!(
             QueueRow,
             "select * from queues where external_id = $1",
@@ -205,7 +205,10 @@ impl Queue {
         Ok(row.to_queue())
     }
 
-    pub async fn find_or_create(queue: CreateQueue, db: &Pool) -> Result<UpsertResult<Self>> {
+    pub async fn find_or_create(
+        queue: CreateQueue,
+        db: &Pool,
+    ) -> Result<UpsertResult<Self>, Error> {
         let result = sqlx::query_as!(
             QueueRow,
             "select qq.*
@@ -232,7 +235,7 @@ impl Queue {
         Ok(upsert_result)
     }
 
-    pub async fn answers(&self, db: &Pool) -> Result<Vec<Answer>> {
+    pub async fn answers(&self, db: &Pool) -> Result<Vec<Answer>, Error> {
         let answers = sqlx::query_as!(
             AnswerRow,
             "select * from answers where queue_id = $1",
@@ -246,7 +249,7 @@ impl Queue {
         Ok(answers)
     }
 
-    pub async fn next_question(&self, db: &Pool) -> Result<NextQuestion> {
+    pub async fn next_question(&self, db: &Pool) -> Result<NextQuestion, Error> {
         info!("Selecting next question");
 
         let choices = sqlx::query_as!(
@@ -266,7 +269,8 @@ impl Queue {
         .await?;
 
         if choices.len() < 1 {
-            bail!("No possible choices found for queue {:?}", self);
+            let error = Error::Generic(format!("No possible choices found for queue {:?}", self));
+            return Err(error);
         }
 
         info!("Choosing from choices: {:?}", choices);
@@ -322,7 +326,7 @@ impl Queue {
         Ok(())
     }
 
-    pub async fn recent_answers(&self, db: &Pool) -> Result<Vec<WideAnswer>> {
+    pub async fn recent_answers(&self, db: &Pool) -> Result<Vec<WideAnswer>, Error> {
         let answers = sqlx::query_as!(
             WideAnswer,
             "select
@@ -349,7 +353,7 @@ impl Queue {
 impl Creatable for Answer {}
 
 impl Answer {
-    pub async fn find(external_id: String, db: &Pool) -> Result<Self> {
+    pub async fn find(external_id: String, db: &Pool) -> Result<Self, Error> {
         let row = sqlx::query_as!(
             AnswerRow,
             "select * from answers where external_id = $1",
@@ -361,7 +365,7 @@ impl Answer {
         Ok(row.to_answer())
     }
 
-    pub async fn create_from(answer: &AnswerQuestion, db: &Pool) -> Result<Self> {
+    pub async fn create_from(answer: &AnswerQuestion, db: &Pool) -> Result<Self, Error> {
         let id = Self::next_id("last_answers_id_seq", db).await?;
         let question = Question::find(&answer.question_external_id, db).await?;
 
@@ -394,7 +398,7 @@ impl Answer {
         answered_at: DateTime,
         consecutive_correct: i32,
         db: &Pool,
-    ) -> Result<Answer> {
+    ) -> Result<Self, Error> {
         let row = sqlx::query_as!(
             AnswerRow,
             "update answers set
@@ -414,7 +418,7 @@ impl Answer {
         Ok(row.to_answer())
     }
 
-    pub async fn question(&self, db: &Pool) -> Result<Question> {
+    pub async fn question(&self, db: &Pool) -> Result<Question, Error> {
         let row = sqlx::query_as!(
             QuestionRow,
             "select * from questions where id = $1",
@@ -524,7 +528,7 @@ impl LastAnswer {
         Ok(last_answer)
     }
 
-    async fn update(&self, answer: &Answer, db: &Pool) -> Result<()> {
+    async fn update(&self, answer: &Answer, db: &Pool) -> Result<(), Error> {
         sqlx::query!(
             "update last_answers set
                 answer_id = $1,

@@ -1,15 +1,20 @@
 use actix_web::{HttpResponse, ResponseError};
 use argon2;
+use askama::Template;
 use std::{error, fmt};
+
+use crate::prelude::*;
 
 #[derive(Debug)]
 pub enum Error {
     ActixWeb(actix_web::error::Error),
     Anyhow(anyhow::Error),
+    Config(envy::Error),
     Database(sqlx::Error),
     Generic(String),
     HashPasswordError(argon2::Error),
     Json(serde_json::error::Error),
+    MigrationError(sqlx::migrate::MigrateError),
 }
 
 impl fmt::Display for Error {
@@ -23,10 +28,12 @@ impl error::Error for Error {
         match self {
             Error::ActixWeb(e) => Some(e),
             Error::Anyhow(e) => Some(e.root_cause()),
+            Error::Config(e) => Some(e),
             Error::Database(e) => Some(e),
             Error::Generic(_) => None,
             Error::HashPasswordError(e) => Some(e),
             Error::Json(e) => Some(e),
+            Error::MigrationError(e) => Some(e),
         }
     }
 }
@@ -61,11 +68,44 @@ impl From<serde_json::error::Error> for Error {
     }
 }
 
+impl From<envy::Error> for Error {
+    fn from(e: envy::Error) -> Self {
+        Self::Config(e)
+    }
+}
+
+impl From<sqlx::migrate::MigrateError> for Error {
+    fn from(e: sqlx::migrate::MigrateError) -> Self {
+        Self::MigrationError(e)
+    }
+}
+
+#[derive(Template)]
+#[template(path = "not-found.jinja")]
+struct NotFound {
+    messages: Vec<Message>,
+    page: CurrentPage,
+}
+
 // TODO: Set up a nice error page
 impl ResponseError for Error {
     fn error_response(&self) -> HttpResponse {
-        HttpResponse::InternalServerError()
-            .content_type("text/html; charset=utf-8")
-            .body(format!("There was a problem: {:?}", self))
+        match self {
+            Self::Database(sqlx::Error::RowNotFound) => {
+                let s = NotFound {
+                    messages: Vec::new(),
+                    page: CurrentPage::from("/", User::guest()),
+                }
+                .render()
+                .unwrap();
+                HttpResponse::NotFound()
+                    .content_type("text/html; charset=utf-8")
+                    .body(s)
+            }
+
+            _ => HttpResponse::InternalServerError()
+                .content_type("text/html; charset=utf-8")
+                .body(format!("There was a problem: {:?}", self)),
+        }
     }
 }

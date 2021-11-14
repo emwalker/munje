@@ -1,4 +1,3 @@
-use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::convert::identity;
 
@@ -19,7 +18,7 @@ pub struct RegisterUser {
 }
 
 impl RegisterUser {
-    pub async fn call(&self, db: &Pool) -> Result<UpsertResult<User>> {
+    pub async fn call(&self, db: &Pool) -> Result<UpsertResult<User>, Error> {
         debug_assert_eq!(Some(true), self.is_valid);
         User::register(self, db).await
     }

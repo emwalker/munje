@@ -1,4 +1,3 @@
-use anyhow::Result;
 use argon2;
 use chrono;
 use derive_more::{Display, Error};
@@ -84,14 +83,14 @@ impl User {
         !self.is_anonymous
     }
 
-    pub async fn find_by_handle(handle: String, db: &Pool) -> Result<Self> {
+    pub async fn find_by_handle(handle: String, db: &Pool) -> Result<Self, Error> {
         let row = sqlx::query_as!(UserRow, "select * from users where handle = $1", handle)
             .fetch_one(db)
             .await?;
         Ok(row.to_user())
     }
 
-    pub async fn register(mutation: &RegisterUser, db: &Pool) -> Result<UpsertResult<Self>> {
+    pub async fn register(mutation: &RegisterUser, db: &Pool) -> Result<UpsertResult<Self>, Error> {
         let password = mutation.password.value.clone();
         let hashed_password = Password(password.to_string()).to_hash().unwrap();
 
@@ -129,7 +128,7 @@ impl User {
         Ok(user)
     }
 
-    pub async fn queues(&self, db: &Pool) -> Result<Vec<Queue>> {
+    pub async fn queues(&self, db: &Pool) -> Result<Vec<Queue>, Error> {
         let queues = sqlx::query_as!(QueueRow, "select * from queues where user_id = $1", self.id,)
             .fetch_all(db)
             .await?

@@ -17,12 +17,6 @@ pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(signup).service(create_user);
 }
 
-fn page() -> CurrentPage {
-    CurrentPage {
-        path: "/users".to_string(),
-    }
-}
-
 #[derive(Template)]
 #[template(path = "users/signup.jinja")]
 struct Signup {
@@ -36,7 +30,7 @@ async fn signup() -> Result<HttpResponse, Error> {
     let s = Signup {
         messages: Message::none(),
         form: RegisterUser::default(),
-        page: page(),
+        page: CurrentPage::from("/users"),
     }
     .render()
     .unwrap();
@@ -50,8 +44,7 @@ async fn create_user(
     request: HttpRequest,
 ) -> Result<HttpResponse, Error> {
     if request.is_authenticated()? {
-        let user = request.user()?;
-        return request.redirect(format!("/{}/queues", user.handle).as_ref());
+        return request.redirect_home();
     }
 
     let mut mutation = form.into_inner();
@@ -59,7 +52,7 @@ async fn create_user(
         let s = Signup {
             messages: Message::none(),
             form: mutation,
-            page: page(),
+            page: CurrentPage::from("/users"),
         }
         .render()
         .unwrap();
@@ -67,5 +60,5 @@ async fn create_user(
     }
 
     mutation.call(&state.db).await?;
-    request.redirect(format!("/{}/queues", mutation.handle.value).as_ref())
+    request.redirect_home()
 }

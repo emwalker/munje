@@ -22,6 +22,9 @@ pub trait Render {
 
     /// Handy redirects helper.
     fn redirect(&self, location: &str) -> Result<HttpResponse, Error>;
+
+    /// Redirect to the logged-in user's home page
+    fn redirect_home(&self) -> Result<HttpResponse, Error>;
 }
 
 impl Render for HttpRequest {
@@ -75,5 +78,9 @@ impl Render for HttpRequest {
         Ok(HttpResponse::Found()
             .append_header((LOCATION, location))
             .finish())
+    }
+
+    fn redirect_home(&self) -> Result<HttpResponse, Error> {
+        self.redirect("/overview")
     }
 }

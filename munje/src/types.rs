@@ -39,6 +39,12 @@ pub struct CurrentPage {
 }
 
 impl CurrentPage {
+    pub fn from(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+        }
+    }
+
     pub fn at(&self, path: &str) -> bool {
         self.path == path
     }

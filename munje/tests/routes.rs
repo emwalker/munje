@@ -19,6 +19,14 @@ async fn home() -> TestResult {
 }
 
 #[actix_rt::test]
+async fn dashboard() -> TestResult {
+    let res = Runner::new().await.get("/overview").await?;
+    assert_eq!(res.status, http::StatusCode::OK);
+    assert_eq!("Overview", res.doc.select_text("h2.title").unwrap());
+    Ok(())
+}
+
+#[actix_rt::test]
 async fn robots() -> TestResult {
     let res = Runner::new().await.get("/robots.txt").await?;
     assert_eq!(res.status, http::StatusCode::OK);

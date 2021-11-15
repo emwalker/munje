@@ -52,7 +52,7 @@ spec:
         envFrom:
         - secretRef:
             name: munje-secrets
-        image: emwalker/munje:v7
+        image: emwalker/munje:v8
         imagePullPolicy: Always
         ports:
         - containerPort: 8080

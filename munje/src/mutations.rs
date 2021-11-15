@@ -56,6 +56,20 @@ impl RegisterUser {
             valid.push(false);
         }
 
+        if self.handle.value.contains(char::is_whitespace) {
+            self.handle
+                .errors
+                .push("Username cannot have spaces".to_string());
+            valid.push(false);
+        }
+
+        if !self.handle.value.is_ascii() {
+            self.handle
+                .errors
+                .push("Username cannot have special characters".to_string());
+            valid.push(false);
+        }
+
         if self.password.value != self.password_confirmation.value {
             self.password_confirmation
                 .errors
@@ -146,26 +160,47 @@ mod tests {
     }
 
     #[test]
-    fn register_user_invalid_if_password_mismatch() {
-        let mut mutation = RegisterUser::new("gnusto", "pass1", "pass2");
-
-        assert!(!mutation.validate());
-        assert!(!mutation.password_confirmation.is_valid());
-        assert_includes(
-            mutation.password_confirmation.errors,
-            "Passwords do not match",
-        );
-    }
-
-    #[test]
     fn register_user_invalid_if_handle_not_long_enough() {
-        let mut mutation = RegisterUser::new("gn", "pass1", "pass1");
+        let mut mutation = RegisterUser::new("gn", "password1", "password1");
 
         assert!(!mutation.validate());
         assert!(!mutation.handle.is_valid());
         assert_includes(
             mutation.handle.errors,
             "Username must have at least three characters",
+        );
+    }
+
+    #[test]
+    fn register_user_invalid_if_handle_has_whitespace() {
+        let mut mutation = RegisterUser::new("gnusto frotz", "password1", "password1");
+
+        assert!(!mutation.validate());
+        assert!(!mutation.handle.is_valid());
+        assert_includes(mutation.handle.errors, "Username cannot have spaces");
+    }
+
+    #[test]
+    fn register_user_invalid_if_handle_is_not_ascii() {
+        let mut mutation = RegisterUser::new("ﬀrotz", "password1", "password1");
+
+        assert!(!mutation.validate());
+        assert!(!mutation.handle.is_valid());
+        assert_includes(
+            mutation.handle.errors,
+            "Username cannot have special characters",
+        );
+    }
+
+    #[test]
+    fn register_user_invalid_if_password_mismatch() {
+        let mut mutation = RegisterUser::new("gnusto", "password1", "password2");
+
+        assert!(!mutation.validate());
+        assert!(!mutation.password_confirmation.is_valid());
+        assert_includes(
+            mutation.password_confirmation.errors,
+            "Passwords do not match",
         );
     }
 
@@ -179,8 +214,20 @@ mod tests {
     }
 
     #[test]
+    fn register_user_invalid_if_password_too_short() {
+        let mut mutation = RegisterUser::new("gnusto", "pass1", "passs1");
+
+        assert!(!mutation.validate());
+        assert!(!mutation.password.is_valid());
+        assert_includes(
+            mutation.password.errors,
+            "Password must have at least eight characters",
+        );
+    }
+
+    #[test]
     fn authenticate_user_invalid_if_username_blank() {
-        let mut mutation = AuthenticateUser::new("", "pass1");
+        let mut mutation = AuthenticateUser::new("", "password1");
 
         assert!(!mutation.validate());
         assert!(!mutation.handle.is_valid());

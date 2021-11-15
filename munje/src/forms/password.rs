@@ -24,6 +24,12 @@ impl Validate for PasswordField {
             return false;
         }
 
+        if self.value.len() < 8 {
+            self.errors
+                .push("Password must have at least eight characters".to_string());
+            return false;
+        }
+
         true
     }
 

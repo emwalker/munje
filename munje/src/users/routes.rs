@@ -63,7 +63,8 @@ async fn create_user(
         return Ok(HttpResponse::BadRequest().content_type("text/html").body(s));
     }
 
-    mutation.call(request.db()?).await?;
+    let db = request.db()?;
+    mutation.call(&request, db).await?;
     request.redirect_home()
 }
 

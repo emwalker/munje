@@ -18,9 +18,15 @@ pub struct RegisterUser {
 }
 
 impl RegisterUser {
-    pub async fn call(&self, db: &Pool) -> Result<UpsertResult<User>, Error> {
+    pub async fn call(
+        &self,
+        request: &HttpRequest,
+        db: &Pool,
+    ) -> Result<UpsertResult<User>, Error> {
         debug_assert_eq!(Some(true), self.is_valid);
-        User::register(self, db).await
+        let result = User::register(self, db).await?;
+        request.set_user(result.record.clone())?;
+        Ok(result)
     }
 
     pub fn new(handle: &str, password: &str, password_confirmation: &str) -> Self {

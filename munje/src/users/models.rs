@@ -96,10 +96,11 @@ impl User {
 
         let row = sqlx::query_as!(
             UserRow,
-            "insert into users (handle, hashed_password) values ($1, $2)
+            "insert into users (handle, hashed_password, last_login) values ($1, $2, $3)
              returning *",
             mutation.handle.value.clone(),
             hashed_password,
+            chrono::Utc::now(),
         )
         .fetch_one(db)
         .await?;

@@ -7,8 +7,9 @@ use askama::Template;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    mutations::AnswerQuestion,
     prelude::*,
-    queues::{AnswerQuestion, NextQuestion, Queue, WideAnswer},
+    queues::{NextQuestion, Queue, WideAnswer},
     types::{CurrentPage, Message},
     users::User,
 };
@@ -51,10 +52,7 @@ async fn list(
     let handle = path.into_inner();
     let messages = Message::none();
     let db = request.db()?;
-    let queues = User::find_by_handle(handle.clone(), db)
-        .await?
-        .queues(db)
-        .await?;
+    let queues = User::find_by_handle(&handle, db).await?.queues(db).await?;
 
     let s = List {
         messages: &messages,
@@ -125,24 +123,17 @@ async fn answer_question(
 
     let (handle, queue_external_id, question_external_id) = path.into_inner();
     let form = form.into_inner();
-    let queue = Queue::find(&queue_external_id, request.db()?).await?;
-    let state_name = form.translated_state()?;
+    let mutation = AnswerQuestion {
+        handle: handle.clone(),
+        question_external_id: question_external_id.clone(),
+        queue_external_id: queue_external_id.clone(),
+        state: form.translated_state()?,
+    };
 
-    info!(
-        r#"Answering question {} as "{}"#,
-        question_external_id, state_name
-    );
-    queue
-        .answer_question(
-            AnswerQuestion {
-                question_external_id: question_external_id.clone(),
-                state: state_name,
-                user_id: queue.user_id,
-                queue_id: queue.id,
-            },
-            request.db()?,
-        )
-        .await?;
+    if !mutation.validate() {
+        // something here
+    }
+    mutation.call(request.db()?).await?;
 
     request.redirect(format!("/{}/queues/{}", handle, queue_external_id).as_ref())
 }

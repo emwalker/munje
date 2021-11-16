@@ -4,6 +4,6 @@ pub use super::{
     auth,
     error::Error,
     request::{DatabasePool, Render},
-    types::{AppState, CurrentPage, Message, Pool},
+    types::{AppState, CurrentPage, DateTime, Message, Pool},
     users::User,
 };

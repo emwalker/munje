@@ -94,14 +94,6 @@ pub struct WideAnswer {
     pub queue_id: i64,
 }
 
-#[derive(Debug)]
-pub struct AnswerQuestion {
-    pub question_external_id: String,
-    pub queue_id: i64,
-    pub state: String,
-    pub user_id: i64,
-}
-
 #[derive(Debug, Serialize, FromRow)]
 pub struct LastAnswer {
     pub answer_id: i64,
@@ -126,6 +118,13 @@ pub struct UpsertLastAnswer {
     pub user_id: i64,
 }
 
+pub struct CreateAnswer {
+    pub question_id: i64,
+    pub queue_id: i64,
+    pub state: String,
+    pub user_id: i64,
+}
+
 impl AnswerRow {
     pub fn to_answer(&self) -> Answer {
         Answer {
@@ -137,15 +136,6 @@ impl AnswerRow {
             queue_id: self.queue_id,
             state: self.state.clone(),
             user_id: self.user_id,
-        }
-    }
-}
-
-impl AnswerQuestion {
-    fn consecutive_correct(&self) -> i32 {
-        match self.state.as_ref() {
-            "correct" => 1,
-            _ => 0,
         }
     }
 }
@@ -304,31 +294,6 @@ impl Queue {
         Ok(next_question)
     }
 
-    pub async fn answer_question(
-        &self,
-        answer_question: AnswerQuestion,
-        db: &Pool,
-    ) -> Result<(), Error> {
-        let answer = Answer::create_from(&answer_question, db).await?;
-        let last_answer = LastAnswer::find_or_create(&answer, db).await?.record;
-        let consecutive_correct = match answer_question.state.as_ref() {
-            "correct" => last_answer.answer_consecutive_correct + 1,
-            _ => 0,
-        };
-
-        let answer = answer
-            .finalize(
-                answer_question.state.clone(),
-                DateTime::now(),
-                consecutive_correct,
-                db,
-            )
-            .await?;
-        last_answer.update(&answer, db).await?;
-
-        Ok(())
-    }
-
     pub async fn recent_answers(&self, db: &Pool) -> Result<Vec<WideAnswer>, Error> {
         let answers = sqlx::query_as!(
             WideAnswer,
@@ -368,9 +333,8 @@ impl Answer {
         Ok(row.to_answer())
     }
 
-    pub async fn create_from(answer: &AnswerQuestion, db: &Pool) -> Result<Self, Error> {
+    pub async fn create(answer: CreateAnswer, db: &Pool) -> Result<Self, Error> {
         let id = Self::next_id("last_answers_id_seq", db).await?;
-        let question = Question::find(&answer.question_external_id, db).await?;
 
         let row = sqlx::query_as!(
             AnswerRow,
@@ -383,10 +347,10 @@ impl Answer {
             id.external_id(),
             answer.user_id,
             answer.queue_id,
-            question.id,
+            answer.question_id,
             answer.state,
             DateTime::now().to_chrono(),
-            answer.consecutive_correct(),
+            0,
         )
         .fetch_one(db)
         .await?;
@@ -473,7 +437,7 @@ impl WideAnswer {
 impl Creatable for LastAnswer {}
 
 impl LastAnswer {
-    async fn find_or_create(answer: &Answer, db: &Pool) -> Result<UpsertResult<Self>, Error> {
+    pub async fn find_or_create(answer: &Answer, db: &Pool) -> Result<UpsertResult<Self>, Error> {
         let result = sqlx::query_as!(
             Self,
             "select * from last_answers
@@ -531,7 +495,7 @@ impl LastAnswer {
         Ok(last_answer)
     }
 
-    async fn update(&self, answer: &Answer, db: &Pool) -> Result<(), Error> {
+    pub async fn update(&self, answer: &Answer, db: &Pool) -> Result<(), Error> {
         sqlx::query!(
             "update last_answers set
                 answer_id = $1,

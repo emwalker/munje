@@ -6,6 +6,8 @@ use crate::{
     forms::{PasswordField, TextField, Validate},
     models::UpsertResult,
     prelude::*,
+    questions::Question,
+    queues::{Answer, CreateAnswer, LastAnswer, Queue},
 };
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -20,7 +22,7 @@ impl RegisterUser {
     pub async fn call(&self, id: &Identity, db: &Pool) -> Result<UpsertResult<User>, Error> {
         debug_assert_eq!(Some(true), self.is_valid);
 
-        let result = match User::find_by_handle(self.handle.value.clone(), db).await {
+        let result = match User::find_by_handle(&self.handle.value, db).await {
             Ok(user) => UpsertResult {
                 record: user,
                 created: false,
@@ -155,6 +157,56 @@ pub struct DestroyUserSession;
 impl DestroyUserSession {
     pub async fn call(&self, id: &Identity) -> Result<(), Error> {
         id.forget();
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct AnswerQuestion {
+    pub handle: String,
+    pub question_external_id: String,
+    pub queue_external_id: String,
+    pub state: String,
+}
+
+impl AnswerQuestion {
+    pub fn validate(&self) -> bool {
+        true
+    }
+
+    pub async fn call(&self, db: &Pool) -> Result<(), Error> {
+        info!(
+            r#"Answering question {} as "{}"#,
+            self.question_external_id, self.state
+        );
+
+        let queue = Queue::find(&self.queue_external_id, db).await?;
+        let user = User::find_by_handle(&self.handle, db).await?;
+        let question = Question::find(&self.question_external_id, db).await?;
+
+        let answer = Answer::create(
+            CreateAnswer {
+                queue_id: queue.id,
+                user_id: user.id,
+                question_id: question.id,
+                state: self.state.clone(),
+            },
+            db,
+        )
+        .await?;
+
+        let last_answer = LastAnswer::find_or_create(&answer, db).await?.record;
+
+        let consecutive_correct = match self.state.as_ref() {
+            "correct" => last_answer.answer_consecutive_correct + 1,
+            _ => 0,
+        };
+
+        let answer = answer
+            .finalize(self.state.clone(), DateTime::now(), consecutive_correct, db)
+            .await?;
+        last_answer.update(&answer, db).await?;
+
         Ok(())
     }
 }

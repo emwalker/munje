@@ -109,7 +109,7 @@ impl RunnerBuilder {
             };
         }
 
-        let user = User::find_by_handle("gnusto".to_string(), &db)
+        let user = User::find_by_handle("gnusto", &db)
             .await
             .expect("Failed to fetch user");
 
@@ -167,7 +167,7 @@ impl Runner {
             .service(web::resource("/login/{handle}").to(
                 |id: Identity, path: web::Path<String>, request: HttpRequest| async move {
                     let db = request.db().expect("Failed to fetch database handle");
-                    let user = User::find_by_handle(path.into_inner(), db)
+                    let user = User::find_by_handle(&path.into_inner(), db)
                         .await
                         .expect("Unable to find user");
                     let string = serde_json::to_string(&user).expect("Failed to serialize user");

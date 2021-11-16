@@ -82,7 +82,7 @@ impl User {
         !self.is_anonymous
     }
 
-    pub async fn find_by_handle(handle: String, db: &Pool) -> Result<Self, Error> {
+    pub async fn find_by_handle(handle: &str, db: &Pool) -> Result<Self, Error> {
         let row = sqlx::query_as!(UserRow, "select * from users where handle = $1", handle)
             .fetch_one(db)
             .await?;
@@ -116,7 +116,7 @@ impl User {
     }
 
     pub async fn authenticate(mutation: &AuthenticateUser, db: &Pool) -> Result<User, Error> {
-        let user = Self::find_by_handle(mutation.handle.value.clone(), db).await?;
+        let user = Self::find_by_handle(&mutation.handle.value, db).await?;
         let password = Password(user.hashed_password.clone());
         if !password.verify(&mutation.password.value)? {
             return Err(Error::InvalidPassword);

@@ -179,7 +179,7 @@ impl fmt::Debug for ChoiceRow {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "ChoiceRow {{ {} {} {} }}",
+            "ChoiceRow {{ question_id: {}, answer_consecutive_correct: {}, answer_state: {} }}",
             self.question_id,
             self.answer_consecutive_correct.unwrap_or(0),
             self.answer_state.clone().unwrap_or("unknown".to_string()),

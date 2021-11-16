@@ -997,6 +997,45 @@
       ]
     }
   },
+  "b80f3ca900f34b4ea096eb0474985bcfd43284eaf2e5073716d3c6ae57653f18": {
+    "query": "select\n                q.id question_id,\n                la.answer_state \"answer_state?\",\n                la.answer_answered_at \"answer_answered_at?\",\n                la.answer_consecutive_correct \"answer_consecutive_correct?\"\n             from questions q\n             left join last_answers la\n                on  q.id = la.question_id\n                and la.user_id = $1\n                and la.queue_id = $2\n             limit 100",
+    "describe": {
+      "columns": [
+        {
+          "ordinal": 0,
+          "name": "question_id",
+          "type_info": "Int8"
+        },
+        {
+          "ordinal": 1,
+          "name": "answer_state?",
+          "type_info": "Varchar"
+        },
+        {
+          "ordinal": 2,
+          "name": "answer_answered_at?",
+          "type_info": "Timestamptz"
+        },
+        {
+          "ordinal": 3,
+          "name": "answer_consecutive_correct?",
+          "type_info": "Int4"
+        }
+      ],
+      "parameters": {
+        "Left": [
+          "Int8",
+          "Int8"
+        ]
+      },
+      "nullable": [
+        false,
+        false,
+        false,
+        false
+      ]
+    }
+  },
   "d08164d05467a20d6fa93b8361d378c1adfe92b05954dfeef6ffafe00e44f992": {
     "query": "select * from last_answers\n                where user_id = $1\n                  and question_id = $2\n                  and queue_id = $3\n             limit 1",
     "describe": {
@@ -1066,44 +1105,6 @@
         false,
         false,
         false,
-        false,
-        false,
-        false,
-        false
-      ]
-    }
-  },
-  "d3405a9e498a96cbbcd2f380d78f8cb4b04dc1e94d9192da1459692907ee2889": {
-    "query": "select\n                q.id question_id,\n                la.answer_state \"answer_state?\",\n                la.answer_answered_at \"answer_answered_at?\",\n                la.answer_consecutive_correct \"answer_consecutive_correct?\"\n             from questions q\n             left join last_answers la on q.id = la.question_id\n             where (la.user_id = $1 or la.user_id is null)\n             limit 100",
-    "describe": {
-      "columns": [
-        {
-          "ordinal": 0,
-          "name": "question_id",
-          "type_info": "Int8"
-        },
-        {
-          "ordinal": 1,
-          "name": "answer_state?",
-          "type_info": "Varchar"
-        },
-        {
-          "ordinal": 2,
-          "name": "answer_answered_at?",
-          "type_info": "Timestamptz"
-        },
-        {
-          "ordinal": 3,
-          "name": "answer_consecutive_correct?",
-          "type_info": "Int4"
-        }
-      ],
-      "parameters": {
-        "Left": [
-          "Int8"
-        ]
-      },
-      "nullable": [
         false,
         false,
         false,

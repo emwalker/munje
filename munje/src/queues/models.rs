@@ -260,16 +260,19 @@ impl Queue {
                 la.answer_answered_at "answer_answered_at?",
                 la.answer_consecutive_correct "answer_consecutive_correct?"
              from questions q
-             left join last_answers la on q.id = la.question_id
-             where (la.user_id = $1 or la.user_id is null)
+             left join last_answers la
+                on  q.id = la.question_id
+                and la.user_id = $1
+                and la.queue_id = $2
              limit 100"#,
             self.user_id,
+            self.id,
         )
         .fetch_all(db)
         .await?;
 
         if choices.len() < 1 {
-            let error = Error::Generic(format!("No possible choices found for queue {:?}", self));
+            let error = Error::Generic(format!("No choices found for queue {:?}", self));
             return Err(error);
         }
 

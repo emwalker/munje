@@ -305,7 +305,12 @@ impl Strategy for SpacedRepetition {
         let threshold = self.clock.threshold();
         choices.sort_by_key(|c| (c.question_id, Reverse(c.answered_at)));
         choices.dedup_by_key(|c| c.question_id);
-        choices.sort_by_key(|c| (c.consecutive_correct, Reverse(threshold - c.answered_at)));
+        choices.sort_by_key(|c| {
+            (
+                Reverse(threshold - self.available_at(&c)),
+                Reverse(c.consecutive_correct),
+            )
+        });
         choices
     }
 
@@ -397,7 +402,7 @@ mod tests {
                     C(1, 2, clock.ticks(-3), State::Correct),
                     C(2, 3, clock.ticks(-10), State::Correct),
                 ],
-                expected: (Some(0), clock.ticks(0)),
+                expected: (Some(2), clock.ticks(-2)),
             },
             TestCase {
                 name: "When there are several questions, none of which is ready to work on",
@@ -463,6 +468,16 @@ mod tests {
                     C(2, 0, clock.ticks(-2), State::Unsure),
                 ],
                 expected: (None, clock.ticks(88)),
+            },
+            TestCase {
+                name: "Next available time is not taken from the first unanswered question",
+                choices: vec![
+                    C(0, 0, clock.ticks(-2), State::Unsure),
+                    C(1, 1, clock.ticks(-1), State::Correct),
+                    C(2, 0, clock.ticks(-0), State::Incorrect),
+                    C(3, 1, clock.ticks(1), State::Correct),
+                ],
+                expected: (None, clock.ticks(1)),
             },
         ];
 

@@ -1,8 +1,8 @@
+use actix_identity::Identity;
 use actix_web::{
     get, post, web,
     web::{Form, Path},
 };
-use anyhow::Result;
 use askama::Template;
 use reqwest;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,6 @@ use crate::{
     questions::{CreateQuestion, Question},
     queues::{CreateQueue, Queue},
     types::{CurrentPage, Message},
-    users::User,
 };
 
 pub fn register(cfg: &mut web::ServiceConfig) {
@@ -33,12 +32,12 @@ struct List<'a> {
 }
 
 #[get("/questions")]
-async fn list(request: HttpRequest) -> Result<HttpResponse, Error> {
+async fn list(request: HttpRequest, id: Identity) -> Result<HttpResponse, Error> {
     let questions = Question::find_all(request.db()?).await?;
     let s = List {
         questions: &questions,
         messages: &Message::none(),
-        page: CurrentPage::from("/questions", request.user()?),
+        page: CurrentPage::from("/questions", auth::user_or_guest(&id)?),
     }
     .render()
     .unwrap();
@@ -69,10 +68,14 @@ struct Show<'a> {
 }
 
 #[get("/questions/{external_id}")]
-async fn show_or_new(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, Error> {
+async fn show_or_new(
+    path: Path<String>,
+    request: HttpRequest,
+    id: Identity,
+) -> Result<HttpResponse, Error> {
     let external_id = path.into_inner();
     let messages = &Message::none();
-    let user = request.user().unwrap_or(User::default());
+    let user = auth::user_or_guest(&id)?;
 
     let s = match external_id.as_ref() {
         "new" => {
@@ -104,7 +107,7 @@ async fn show_or_new(path: Path<String>, request: HttpRequest) -> Result<HttpRes
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
-async fn fetch_page(link: &String) -> Result<Page> {
+async fn fetch_page(link: &String) -> Result<Page, Error> {
     let original_url = Url::parse(link)?;
     info!("Fetching text at link {}", original_url);
     let html = reqwest::get(link).await?.text().await?;
@@ -113,16 +116,17 @@ async fn fetch_page(link: &String) -> Result<Page> {
 }
 
 #[post("/questions")]
-async fn create(form: Form<QuestionForm>, request: HttpRequest) -> Result<HttpResponse, Error> {
-    if !request.is_authenticated()? {
-        return request.redirect("/");
-    }
-
+async fn create(
+    form: Form<QuestionForm>,
+    request: HttpRequest,
+    id: Identity,
+) -> Result<HttpResponse, Error> {
+    let user = auth::user(&id)?;
     let form = form.into_inner();
     let page = fetch_page(&form.link).await?;
 
     let question = CreateQuestion {
-        author_id: request.user()?.id,
+        author_id: user.id,
         link: form.link.clone(),
         link_logo: page.meta_image().map(|url| url.to_string()),
         title: form.title.clone(),
@@ -133,19 +137,19 @@ async fn create(form: Form<QuestionForm>, request: HttpRequest) -> Result<HttpRe
 }
 
 #[post("/questions/{external_id}/queues")]
-async fn start_queue(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, Error> {
-    if !request.is_authenticated()? {
-        return request.redirect("/");
-    }
-
+async fn start_queue(
+    path: Path<String>,
+    request: HttpRequest,
+    id: Identity,
+) -> Result<HttpResponse, Error> {
+    let user = auth::user(&id)?;
     let external_id = path.into_inner();
-    let user = request.user()?;
 
     let queue = CreateQueue {
         description: "Questions related to algorithms and data structures".to_string(),
         starting_question_external_id: external_id.clone(),
         title: "Algorithms and data strucures".to_string(),
-        user_id: 1,
+        user_id: user.id,
     };
     let result = Queue::find_or_create(queue, request.db()?).await?;
 

@@ -13,8 +13,8 @@
             <div class="markdown-body mb-5">
               {{ question.text.markdown()|safe }}
             </div>
-            <form method="POST" class="has-text-centered"
-              action="/queues/{{ queue.external_id }}/questions/{{ question.external_id }}"
+            <form method="POST" class="has-text-centered next-question"
+              action="/{{ page.handle() }}/queues/{{ queue.external_id }}/questions/{{ question.external_id }}"
             >
               <input class="button is-success is-medium is-light mr-6"
                 type="submit" name="state" value="Correct" />

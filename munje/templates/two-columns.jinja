@@ -8,7 +8,7 @@
             {% if page.is_authenticated() %}
               <li><a class='{{page.active("/overview")}}' href="/overview">Overview</a></li>
               <li><a class='{{page.active("/queues")}}'
-                href="/{{ page.user.handle }}/queues">Queues</a></li>
+                href="/{{ page.handle() }}/queues">Queues</a></li>
             {% endif %}
             <li><a class='{{page.active("/questions")}}' href="/questions">Questions</a></li>
           </ul>

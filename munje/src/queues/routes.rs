@@ -1,3 +1,4 @@
+use actix_identity::Identity;
 use actix_web::{
     get, post, web,
     web::{Form, Path},
@@ -42,7 +43,11 @@ struct List<'a> {
 }
 
 #[get("/{handle}/queues")]
-async fn list(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, Error> {
+async fn list(
+    path: Path<String>,
+    request: HttpRequest,
+    id: Identity,
+) -> Result<HttpResponse, Error> {
     let handle = path.into_inner();
     let messages = Message::none();
     let db = request.db()?;
@@ -53,7 +58,7 @@ async fn list(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, 
 
     let s = List {
         messages: &messages,
-        page: CurrentPage::from("/queues", request.user()?),
+        page: CurrentPage::from("/queues", auth::user(&id)?),
         queues: &queues,
     }
     .render()
@@ -61,20 +66,24 @@ async fn list(path: Path<String>, request: HttpRequest) -> Result<HttpResponse, 
     Ok(HttpResponse::Ok().content_type("text/html").body(s))
 }
 
-#[get("/{handle}/queues/{id}")]
-async fn show(path: Path<(String, String)>, request: HttpRequest) -> Result<HttpResponse, Error> {
-    let (_handle, id) = path.into_inner();
+#[get("/{handle}/queues/{queue_id}")]
+async fn show(
+    path: Path<(String, String)>,
+    request: HttpRequest,
+    id: Identity,
+) -> Result<HttpResponse, Error> {
+    let (_handle, queue_id) = path.into_inner();
     let messages = &Message::none();
     let db = request.db()?;
 
-    let queue = &Queue::find(&id, db).await?;
+    let queue = &Queue::find(&queue_id, db).await?;
     let next_question = queue.next_question(db).await?;
     let recent_answers = queue.recent_answers(db).await?;
 
     let s = Show {
         queue,
         messages,
-        page: CurrentPage::from("/queues", request.user()?),
+        page: CurrentPage::from("/queues", auth::user(&id)?),
         next_question,
         recent_answers,
     }
@@ -108,8 +117,9 @@ async fn answer_question(
     form: Form<AnswerQuestionForm>,
     path: Path<(String, String, String)>,
     request: HttpRequest,
+    id: Identity,
 ) -> Result<HttpResponse, Error> {
-    if !request.is_authenticated()? {
+    if id.identity().is_none() {
         return request.redirect("/");
     }
 

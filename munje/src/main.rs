@@ -1,8 +1,8 @@
 #[macro_use]
 extern crate log;
 
-use actix_session::CookieSession;
-use actix_web::{middleware, web, App, HttpServer};
+use actix_identity::{CookieIdentityPolicy, IdentityService};
+use actix_web::{cookie::SameSite, middleware, web, App, HttpServer};
 use anyhow::Result;
 use sqlx::postgres::PgPoolOptions;
 
@@ -21,28 +21,16 @@ async fn main() -> Result<()> {
     let db = PgPoolOptions::new().connect(&config.database_url).await?;
 
     let server = HttpServer::new(move || {
-        let key = config.session_key.clone();
-
-        // !production needs no domain set, because browsers.
-        #[cfg(not(feature = "production"))]
-        let session_storage = CookieSession::signed(key.as_bytes())
-            .name("sessionid")
-            .secure(false)
-            .path("/");
-
-        #[cfg(feature = "production")]
-        let session_storage = CookieSession::signed(key.as_bytes())
-            .name("sessionid")
-            .path("/")
-            .same_site(actix_web::cookie::SameSite::Lax)
-            .domain(&config.session_domain.clone())
-            .secure(true);
-
         App::new()
             .app_data(web::Data::new(AppState { db: db.clone() }))
             .wrap(middleware::Logger::default())
             .wrap(middleware::NormalizePath::trim())
-            .wrap(session_storage)
+            .wrap(IdentityService::new(
+                CookieIdentityPolicy::new(config.session_key.as_bytes())
+                    .name("auth-cookie")
+                    .same_site(SameSite::Strict)
+                    .secure(true),
+            ))
             .configure(routes::register)
             .configure(users::routes::register)
             .configure(questions::routes::register)

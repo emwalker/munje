@@ -1,9 +1,12 @@
-use crate::types::{CurrentPage, Message};
+use actix_identity::Identity;
 use actix_web::{get, web, Error, HttpResponse};
 use anyhow::Result;
 use askama::Template;
 
-use crate::prelude::*;
+use crate::{
+    prelude::*,
+    types::{CurrentPage, Message},
+};
 
 pub fn register(cfg: &mut web::ServiceConfig) {
     cfg.service(home).service(overview).service(robots);
@@ -17,10 +20,10 @@ struct Home {
 }
 
 #[get("/")]
-async fn home(request: HttpRequest) -> Result<HttpResponse, Error> {
+async fn home(id: Identity) -> Result<HttpResponse, Error> {
     let s = Home {
         messages: Message::none(),
-        page: CurrentPage::from("/", request.user()?),
+        page: CurrentPage::from("/", auth::user_or_guest(&id)?),
     }
     .render()
     .unwrap();
@@ -35,10 +38,10 @@ struct Overview {
 }
 
 #[get("/overview")]
-async fn overview(request: HttpRequest) -> Result<HttpResponse, Error> {
+async fn overview(id: Identity) -> Result<HttpResponse, Error> {
     let s = Overview {
         messages: Message::none(),
-        page: CurrentPage::from("/overview", request.user()?),
+        page: CurrentPage::from("/overview", auth::user(&id)?),
     }
     .render()
     .unwrap();

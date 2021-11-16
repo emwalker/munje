@@ -3,9 +3,6 @@
 //! authentication in a repeatable and scannable way, loading a user type,
 //! and adding jobs to a background queue.
 
-pub mod auth;
-pub use auth::Authentication;
-
 pub mod database;
 pub use database::DatabasePool;
 

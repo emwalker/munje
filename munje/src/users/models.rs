@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     error::Error,
-    models::UpsertResult,
     mutations::{AuthenticateUser, RegisterUser},
     queues::{Queue, QueueRow},
     types::{DateTime, Pool},
@@ -90,7 +89,7 @@ impl User {
         Ok(row.to_user())
     }
 
-    pub async fn register(mutation: &RegisterUser, db: &Pool) -> Result<UpsertResult<Self>, Error> {
+    pub async fn register(mutation: &RegisterUser, db: &Pool) -> Result<Self, Error> {
         let password = mutation.password.value.clone();
         let hashed_password = Password(password.to_string()).to_hash().unwrap();
 
@@ -105,11 +104,7 @@ impl User {
         .fetch_one(db)
         .await?;
 
-        let result = UpsertResult {
-            record: row.to_user(),
-            created: true,
-        };
-        Ok(result)
+        Ok(row.to_user())
     }
 
     pub async fn update_last_login(id: i64, db: &Pool) -> Result<(), Error> {

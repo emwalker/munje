@@ -1,3 +1,4 @@
+use actix_identity::Identity;
 use actix_web::{get, post, web, web::Form};
 use anyhow::Result;
 use askama::Template;
@@ -6,7 +7,6 @@ use crate::{
     error::Error,
     mutations::{AuthenticateUser, DestroyUserSession, RegisterUser},
     prelude::*,
-    request::Authentication,
     types::{CurrentPage, Message},
 };
 
@@ -27,15 +27,15 @@ struct Signup {
 }
 
 #[get("/users/signup")]
-async fn signup(request: HttpRequest) -> Result<HttpResponse, Error> {
-    if request.is_authenticated()? {
+async fn signup(request: HttpRequest, id: Identity) -> Result<HttpResponse, Error> {
+    if id.identity().is_some() {
         return request.redirect_home();
     }
 
     let s = Signup {
         messages: Message::none(),
         form: RegisterUser::default(),
-        page: CurrentPage::from("/users", request.user()?),
+        page: CurrentPage::from("/users", auth::user_or_guest(&id)?),
     }
     .render()
     .unwrap();
@@ -46,8 +46,9 @@ async fn signup(request: HttpRequest) -> Result<HttpResponse, Error> {
 async fn create_user(
     form: Form<RegisterUser>,
     request: HttpRequest,
+    id: Identity,
 ) -> Result<HttpResponse, Error> {
-    if request.is_authenticated()? {
+    if id.identity().is_some() {
         return request.redirect_home();
     }
 
@@ -56,7 +57,7 @@ async fn create_user(
         let s = Signup {
             messages: Message::none(),
             form: mutation,
-            page: CurrentPage::from("/users", request.user()?),
+            page: CurrentPage::from("/users", auth::user_or_guest(&id)?),
         }
         .render()
         .unwrap();
@@ -64,7 +65,7 @@ async fn create_user(
     }
 
     let db = request.db()?;
-    mutation.call(&request, db).await?;
+    mutation.call(&id, db).await?;
     request.redirect_home()
 }
 
@@ -77,15 +78,15 @@ struct Login {
 }
 
 #[get("/users/login")]
-async fn login(request: HttpRequest) -> Result<HttpResponse, Error> {
-    if request.is_authenticated()? {
+async fn login(request: HttpRequest, id: Identity) -> Result<HttpResponse, Error> {
+    if id.identity().is_some() {
         return request.redirect_home();
     }
 
     let s = Login {
         messages: Message::none(),
         form: AuthenticateUser::default(),
-        page: CurrentPage::from("/users", request.user()?),
+        page: CurrentPage::from("/users", auth::user_or_guest(&id)?),
     }
     .render()
     .unwrap();
@@ -97,17 +98,19 @@ async fn login(request: HttpRequest) -> Result<HttpResponse, Error> {
 async fn create_session(
     form: Form<AuthenticateUser>,
     request: HttpRequest,
+    id: Identity,
 ) -> Result<HttpResponse, Error> {
-    if request.is_authenticated()? {
+    if id.identity().is_some() {
         return request.redirect_home();
     }
+    let guest = auth::user_or_guest(&id)?;
 
     let mut mutation = form.into_inner();
     if !mutation.validate() {
         let s = Login {
             messages: Message::none(),
             form: mutation,
-            page: CurrentPage::from("/users", request.user()?),
+            page: CurrentPage::from("/users", guest),
         }
         .render()
         .unwrap();
@@ -115,7 +118,7 @@ async fn create_session(
     }
 
     let db = request.db()?;
-    match mutation.call(&request, db).await {
+    match mutation.call(&id, db).await {
         Ok(()) => request.redirect_home(),
 
         Err(Error::InvalidPassword) | Err(Error::Database(sqlx::Error::RowNotFound)) => {
@@ -126,7 +129,7 @@ async fn create_session(
             let s = Login {
                 messages: Message::none(),
                 form: mutation,
-                page: CurrentPage::from("/users", request.user()?),
+                page: CurrentPage::from("/users", guest),
             }
             .render()
             .unwrap();
@@ -138,7 +141,7 @@ async fn create_session(
 }
 
 #[post("/users/logout")]
-async fn destroy_session(request: HttpRequest) -> Result<HttpResponse, Error> {
-    DestroyUserSession {}.call(&request).await?;
+async fn destroy_session(request: HttpRequest, id: Identity) -> Result<HttpResponse, Error> {
+    DestroyUserSession {}.call(&id).await?;
     request.redirect("/")
 }

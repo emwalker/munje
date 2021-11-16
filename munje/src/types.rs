@@ -71,6 +71,10 @@ impl CurrentPage {
     pub fn is_authenticated(&self) -> bool {
         !self.user.is_anonymous
     }
+
+    pub fn handle(&self) -> String {
+        self.user.handle.clone()
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
@@ -207,7 +211,26 @@ mod tests {
 
     #[test]
     fn current_page_is_authenticated() {
+        let user = User {
+            handle: "gnusto".to_string(),
+            is_anonymous: false,
+            ..User::default()
+        };
+        let page = CurrentPage::from("/path", user);
+        assert!(page.is_authenticated());
+
         let page = CurrentPage::from("/path", User::guest());
         assert!(!page.is_authenticated());
+    }
+
+    #[test]
+    fn current_page_handle() {
+        let user = User {
+            handle: "gnusto".to_string(),
+            is_anonymous: false,
+            ..User::default()
+        };
+        let page = CurrentPage::from("/path", user);
+        assert_eq!("gnusto".to_string(), page.handle());
     }
 }

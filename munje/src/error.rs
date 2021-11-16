@@ -11,11 +11,14 @@ pub enum Error {
     Anyhow(anyhow::Error),
     Config(envy::Error),
     Database(sqlx::Error),
-    InvalidPassword,
+    FetchPageError(reqwest::Error),
     Generic(String),
     HashPasswordError(argon2::Error),
+    InvalidPassword,
     Json(serde_json::error::Error),
     MigrationError(sqlx::migrate::MigrateError),
+    ParseUrlError(url::ParseError),
+    Unauthorized,
 }
 
 impl fmt::Display for Error {
@@ -31,11 +34,14 @@ impl error::Error for Error {
             Self::Anyhow(e) => Some(e.root_cause()),
             Self::Config(e) => Some(e),
             Self::Database(e) => Some(e),
+            Self::FetchPageError(e) => Some(e),
             Self::Generic(_) => None,
             Self::HashPasswordError(e) => Some(e),
             Self::InvalidPassword => None,
             Self::Json(e) => Some(e),
             Self::MigrationError(e) => Some(e),
+            Self::ParseUrlError(e) => Some(e),
+            Self::Unauthorized => None,
         }
     }
 }
@@ -82,6 +88,18 @@ impl From<sqlx::migrate::MigrateError> for Error {
     }
 }
 
+impl From<url::ParseError> for Error {
+    fn from(e: url::ParseError) -> Self {
+        Self::ParseUrlError(e)
+    }
+}
+
+impl From<reqwest::Error> for Error {
+    fn from(e: reqwest::Error) -> Self {
+        Self::FetchPageError(e)
+    }
+}
+
 #[derive(Template)]
 #[template(path = "not-found.jinja")]
 struct NotFound {
@@ -104,6 +122,10 @@ impl ResponseError for Error {
                     .content_type("text/html; charset=utf-8")
                     .body(s)
             }
+
+            Self::Unauthorized => HttpResponse::Unauthorized()
+                .content_type("text/html; charset=utf-8")
+                .body("You don't have the necessary privileges"),
 
             _ => HttpResponse::InternalServerError()
                 .content_type("text/html; charset=utf-8")

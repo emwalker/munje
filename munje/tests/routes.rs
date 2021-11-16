@@ -12,39 +12,52 @@ use crate::support::{Runner, TestResult};
 
 #[actix_rt::test]
 async fn home() -> TestResult {
-    let res = Runner::new().await.get("/").await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+    let res = Runner::build().to_runner().await.get("/").await;
+
+    assert_eq!(http::StatusCode::OK, res.status);
     assert_eq!("Munje", res.doc.select_text("p.title").unwrap());
     Ok(())
 }
 
 #[actix_rt::test]
-async fn dashboard() -> TestResult {
-    let res = Runner::new().await.get("/overview").await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+async fn overview() -> TestResult {
+    let res = Runner::build()
+        .auth()
+        .to_runner()
+        .await
+        .get("/overview")
+        .await;
+
+    assert_eq!(http::StatusCode::OK, res.status);
     assert_eq!("Overview", res.doc.select_text("h2.title").unwrap());
     Ok(())
 }
 
 #[actix_rt::test]
 async fn robots() -> TestResult {
-    let res = Runner::new().await.get("/robots.txt").await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+    let res = Runner::build().to_runner().await.get("/robots.txt").await;
+    assert_eq!(http::StatusCode::OK, res.status);
     assert_eq!("User-agent: * Disallow: /", res.doc.to_string());
     Ok(())
 }
 
 #[actix_rt::test]
 async fn list_questions() -> TestResult {
-    let res = Runner::new().await.get("/questions").await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+    let res = Runner::build().to_runner().await.get("/questions").await;
+    assert_eq!(http::StatusCode::OK, res.status);
     assert_eq!("Questions", res.doc.select_text("h2").unwrap());
     Ok(())
 }
 
 #[actix_rt::test]
 async fn new_question() -> TestResult {
-    let res = Runner::new().await.get("/questions/new").await?;
+    let res = Runner::build()
+        .auth()
+        .to_runner()
+        .await
+        .get("/questions/new")
+        .await;
+
     assert_eq!(res.status, http::StatusCode::OK);
     assert_eq!("Add a question", res.doc.select_text("h2").unwrap());
     Ok(())
@@ -52,7 +65,12 @@ async fn new_question() -> TestResult {
 
 #[actix_rt::test]
 async fn show_unknown_question() -> TestResult {
-    let res = Runner::new().await.get("/questions/unknown").await?;
+    let res = Runner::build()
+        .to_runner()
+        .await
+        .get("/questions/unknown")
+        .await;
+
     assert_eq!(res.status, http::StatusCode::NOT_FOUND);
     let title = res.doc.select_text("title").unwrap();
     assert_eq!("Not found", title);
@@ -61,7 +79,7 @@ async fn show_unknown_question() -> TestResult {
 
 #[actix_rt::test]
 async fn show_question() -> TestResult {
-    let runner = Runner::new().await;
+    let runner = Runner::build().auth().to_runner().await;
     let question = CreateQuestion {
         author_id: runner.user.id,
         title: "some-title".to_string(),
@@ -71,7 +89,7 @@ async fn show_question() -> TestResult {
 
     let question = Question::create(question, &runner.db).await?;
     let path = format!("/questions/{}", question.external_id);
-    let res = runner.get(&path).await?;
+    let res = runner.get(&path).await;
     assert_eq!(res.status, http::StatusCode::OK);
 
     let doc = res.doc;
@@ -81,14 +99,13 @@ async fn show_question() -> TestResult {
         doc.css("span.title-span")?.first().unwrap().inner_html()
     );
     assert!(doc.css("span.link-logo")?.exists());
-    // User must be logged in
-    assert!(!doc.css("button.start-queue")?.exists());
+    assert!(doc.css("button.start-queue")?.exists());
     Ok(())
 }
 
 #[actix_rt::test]
 async fn start_queue() -> TestResult {
-    let runner = Runner::new().await;
+    let runner = Runner::build().auth().to_runner().await;
     let question = CreateQuestion {
         author_id: runner.user.id,
         title: "some-title".to_string(),
@@ -99,9 +116,8 @@ async fn start_queue() -> TestResult {
     let question = Question::create(question, &runner.db).await?;
     let req = test::TestRequest::post()
         .uri(format!("/questions/{}/queues", question.external_id).as_ref())
-        .append_header(("Content-type", "application/x-www-form-urlencoded"))
-        .to_request();
-    let res = runner.post(req).await?;
+        .append_header(("Content-type", "application/x-www-form-urlencoded"));
+    let res = runner.call(req).await;
 
     assert_eq!(res.status, http::StatusCode::FOUND);
     Ok(())
@@ -109,7 +125,7 @@ async fn start_queue() -> TestResult {
 
 #[actix_rt::test]
 async fn show_queue() -> TestResult {
-    let runner = Runner::new().await;
+    let runner = Runner::build().auth().to_runner().await;
 
     let question = Question::create(
         CreateQuestion {
@@ -135,15 +151,26 @@ async fn show_queue() -> TestResult {
     .record;
 
     let path = format!("/{}/queues/{}", runner.user.handle, queue.external_id);
-    let res = runner.get(&path).await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+    let res = runner.get(&path).await;
+
+    assert_eq!(http::StatusCode::OK, res.status);
     assert!(res.doc.css(".card")?.exists());
+
+    let action_prefix = format!("{}/questions/", path);
+    let mut form = res.doc.css("form.next-question").unwrap();
+    let action = form.first().unwrap().value().attr("action").unwrap();
+    assert!(
+        action.starts_with(&action_prefix),
+        "Unexpected action: {}",
+        action
+    );
+
     Ok(())
 }
 
 #[actix_rt::test]
 async fn answer_question() -> TestResult {
-    let runner = Runner::new().await;
+    let runner = Runner::build().auth().to_runner().await;
     runner.reset_database().await?;
 
     let question = Question::create(
@@ -178,11 +205,8 @@ async fn answer_question() -> TestResult {
         runner.user.handle, queue.external_id, question.external_id
     );
 
-    let req = test::TestRequest::post()
-        .uri(uri.as_ref())
-        .set_form(&form)
-        .to_request();
-    let res = runner.post(req).await?;
+    let req = test::TestRequest::post().uri(uri.as_ref()).set_form(&form);
+    let res = runner.call(req).await;
 
     assert_eq!(res.status, http::StatusCode::FOUND);
     Ok(())
@@ -190,9 +214,10 @@ async fn answer_question() -> TestResult {
 
 #[actix_rt::test]
 async fn list_queues() -> TestResult {
-    let runner = Runner::new().await;
+    let runner = Runner::build().auth().to_runner().await;
     let path = format!("/{}/queues", runner.user.handle);
-    let res = runner.get(path.as_ref()).await?;
+    let res = runner.get(path.as_ref()).await;
+
     assert_eq!(res.status, http::StatusCode::OK);
     assert_eq!(
         "Queues you are working on",
@@ -203,8 +228,9 @@ async fn list_queues() -> TestResult {
 
 #[actix_rt::test]
 async fn user_signup() -> TestResult {
-    let res = Runner::new().await.get("/users/signup").await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+    let res = Runner::build().to_runner().await.get("/users/signup").await;
+
+    assert_eq!(http::StatusCode::OK, res.status);
     assert_eq!(
         Some("Sign up"),
         res.doc
@@ -219,8 +245,9 @@ async fn user_signup() -> TestResult {
 
 #[actix_rt::test]
 async fn user_login() -> TestResult {
-    let res = Runner::new().await.get("/users/login").await?;
-    assert_eq!(res.status, http::StatusCode::OK);
+    let res = Runner::build().to_runner().await.get("/users/login").await;
+
+    assert_eq!(http::StatusCode::OK, res.status);
     assert_eq!(
         Some("Your username"),
         res.doc
@@ -235,7 +262,7 @@ async fn user_login() -> TestResult {
 
 #[actix_rt::test]
 async fn create_user() -> TestResult {
-    let runner = Runner::new().await;
+    let runner = Runner::build().to_runner().await;
     runner.reset_database().await?;
 
     #[derive(Serialize)]
@@ -253,10 +280,9 @@ async fn create_user() -> TestResult {
 
     let req = test::TestRequest::post()
         .uri("/users/signup")
-        .set_form(&form)
-        .to_request();
-    let res = runner.post(req).await?;
+        .set_form(&form);
+    let res = runner.call(req).await;
 
-    assert_eq!(res.status, http::StatusCode::FOUND);
+    assert_eq!(http::StatusCode::FOUND, res.status);
     Ok(())
 }

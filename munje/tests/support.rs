@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-use actix_http::Request;
-use actix_web::dev::Service;
-use actix_web::{http, test, web, App};
+use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
+use actix_web::{dev::ServiceResponse, http, test, web, App, HttpRequest};
 use munje::{
     error::Error,
+    prelude::*,
     questions, queues, routes,
     types::{AppState, Config, Pool},
     users,
@@ -81,19 +81,65 @@ impl Document {
 
 pub struct Runner {
     pub db: Pool,
-    pub user: users::User,
+    pub user: User,
+    pub is_authenticated: bool,
+    pub config: Config,
+}
+
+pub struct RunnerBuilder {
+    is_autheticated: bool,
+}
+
+impl RunnerBuilder {
+    pub fn auth(&mut self) -> &mut Self {
+        self.is_autheticated = true;
+        self
+    }
+
+    pub async fn to_runner(&self) -> Runner {
+        let config = Config::test().expect("Failed to load test config");
+        let db = Self::fetch_db(&config.database_url).await;
+
+        if !self.is_autheticated {
+            return Runner {
+                db,
+                config,
+                user: User::guest(),
+                is_authenticated: false,
+            };
+        }
+
+        let user = User::find_by_handle("gnusto".to_string(), &db)
+            .await
+            .expect("Failed to fetch user");
+
+        Runner {
+            db,
+            config,
+            user,
+            is_authenticated: true,
+        }
+    }
+
+    async fn fetch_db(database_url: &str) -> Pool {
+        let db = PgPoolOptions::new()
+            .max_connections(1)
+            .connect(database_url)
+            .await
+            .expect("Failed to fetch database pool");
+        sqlx::migrate!("./migrations")
+            .run(&db)
+            .await
+            .expect("Failed to run migrations");
+
+        db
+    }
 }
 
 impl Runner {
-    pub async fn new() -> Self {
-        match Self::fetch_db().await {
-            Ok(db) => {
-                let user = users::User::find_by_handle("gnusto".to_string(), &db)
-                    .await
-                    .unwrap();
-                Runner { db: db, user: user }
-            }
-            Err(err) => panic!("There was a problem: {}", err),
+    pub fn build() -> RunnerBuilder {
+        RunnerBuilder {
+            is_autheticated: false,
         }
     }
 
@@ -108,63 +154,60 @@ impl Runner {
         Ok(())
     }
 
-    pub async fn get(&self, path: &str) -> Result<HttpResult, Error> {
+    async fn call_service(&self, mut req: test::TestRequest) -> ServiceResponse {
+        let policy = CookieIdentityPolicy::new(self.config.session_key.as_bytes())
+            .name("auth-cookie")
+            .secure(true);
+
         let app = App::new()
             .app_data(web::Data::new(AppState {
                 db: self.db.clone(),
             }))
-            .configure(routes::register)
-            .configure(users::routes::register)
-            .configure(questions::routes::register)
-            .configure(queues::routes::register);
-        let app = test::init_service(app).await;
-
-        let req = test::TestRequest::get().uri(path).to_request();
-        let resp = app.call(req).await.unwrap();
-
-        let body = match resp.response().body() {
-            actix_web::body::Body::Bytes(bytes) => bytes,
-            actix_web::body::AnyBody::Empty => "".as_bytes(),
-            other => panic!("Response error: {:?}", other),
-        };
-        let html = str::from_utf8(&body).unwrap();
-
-        Ok(HttpResult {
-            doc: Document::from(html),
-            status: resp.status(),
-        })
-    }
-
-    pub async fn post(&self, req: Request) -> Result<HttpResult, Error> {
-        let app = App::new()
-            .app_data(web::Data::new(AppState {
-                db: self.db.clone(),
-            }))
+            .wrap(IdentityService::new(policy))
+            .service(web::resource("/login/{handle}").to(
+                |id: Identity, path: web::Path<String>, request: HttpRequest| async move {
+                    let db = request.db().expect("Failed to fetch database handle");
+                    let user = User::find_by_handle(path.into_inner(), db)
+                        .await
+                        .expect("Unable to find user");
+                    let string = serde_json::to_string(&user).expect("Failed to serialize user");
+                    id.remember(string);
+                    HttpResponse::Ok()
+                },
+            ))
             .configure(routes::register)
             .configure(users::routes::register)
             .configure(questions::routes::register)
             .configure(queues::routes::register);
 
-        let app = test::init_service(app).await;
-        let resp = app.call(req).await.unwrap();
-        Ok(HttpResult {
-            doc: Document::from(""),
-            status: resp.status(),
-        })
-    }
+        let srv = test::init_service(app).await;
 
-    async fn fetch_db() -> Result<Pool, Error> {
-        let config = Config::test().expect("Failed to load test config");
-        let result = PgPoolOptions::new()
-            .max_connections(1)
-            .connect(&config.database_url)
-            .await;
-        match result {
-            Ok(pool) => {
-                sqlx::migrate!("./migrations").run(&pool).await?;
-                Ok(pool)
-            }
-            Err(err) => panic!("Unable to fetch database pool: {}", err),
+        if self.is_authenticated {
+            let login_path = format!("/login/{}", self.user.handle);
+            let auth_req = test::TestRequest::with_uri(&login_path).to_request();
+            let res = test::call_service(&srv, auth_req).await;
+            assert_eq!(http::StatusCode::OK, res.status());
+            let cookie = res.response().cookies().next().unwrap().to_owned();
+            req = req.cookie(cookie)
         }
+
+        test::call_service(&srv, req.to_request()).await
+    }
+
+    pub async fn call(&self, req: test::TestRequest) -> HttpResult {
+        let res = self.call_service(req).await;
+        let status = res.status();
+        let body = test::read_body(res).await;
+        let html = str::from_utf8(&body).expect("Failed to decode body");
+
+        HttpResult {
+            doc: Document::from(html),
+            status,
+        }
+    }
+
+    pub async fn get(&self, path: &str) -> HttpResult {
+        let req = test::TestRequest::with_uri(path);
+        self.call(req).await
     }
 }

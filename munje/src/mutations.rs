@@ -1,3 +1,4 @@
+use actix_identity::Identity;
 use serde::{Deserialize, Serialize};
 use std::convert::identity;
 
@@ -5,8 +6,6 @@ use crate::{
     forms::{PasswordField, TextField, Validate},
     models::UpsertResult,
     prelude::*,
-    types::Pool,
-    users::User,
 };
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -18,14 +17,28 @@ pub struct RegisterUser {
 }
 
 impl RegisterUser {
-    pub async fn call(
-        &self,
-        request: &HttpRequest,
-        db: &Pool,
-    ) -> Result<UpsertResult<User>, Error> {
+    pub async fn call(&self, id: &Identity, db: &Pool) -> Result<UpsertResult<User>, Error> {
         debug_assert_eq!(Some(true), self.is_valid);
-        let result = User::register(self, db).await?;
-        request.set_user(result.record.clone())?;
+
+        let result = match User::find_by_handle(self.handle.value.clone(), db).await {
+            Ok(user) => UpsertResult {
+                record: user,
+                created: false,
+            },
+
+            Err(Error::Database(sqlx::Error::RowNotFound)) => {
+                let user = User::register(self, db).await?;
+                UpsertResult {
+                    record: user,
+                    created: true,
+                }
+            }
+
+            Err(error) => return Err(error),
+        };
+
+        let string = serde_json::to_string(&result.record)?;
+        id.remember(string);
         Ok(result)
     }
 
@@ -100,11 +113,12 @@ impl AuthenticateUser {
         }
     }
 
-    pub async fn call(&self, request: &HttpRequest, db: &Pool) -> Result<(), Error> {
+    pub async fn call(&self, id: &Identity, db: &Pool) -> Result<(), Error> {
         debug_assert_eq!(Some(true), self.is_valid);
         let user = User::authenticate(self, db).await?;
         User::update_last_login(user.id, db).await?;
-        request.set_user(user)?;
+        let string = serde_json::to_string(&user)?;
+        id.remember(string);
         Ok(())
     }
 
@@ -139,9 +153,8 @@ impl AuthenticateUser {
 pub struct DestroyUserSession;
 
 impl DestroyUserSession {
-    pub async fn call(&self, request: &HttpRequest) -> Result<(), Error> {
-        use actix_session::UserSession;
-        request.get_session().clear();
+    pub async fn call(&self, id: &Identity) -> Result<(), Error> {
+        id.forget();
         Ok(())
     }
 }

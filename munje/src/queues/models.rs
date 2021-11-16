@@ -7,10 +7,7 @@ use crate::{
     models::{Creatable, UpsertResult},
     prelude::*,
     questions::{Question, QuestionRow},
-    queues::{
-        choosers,
-        choosers::{Choice, ChoiceRow, Strategy},
-    },
+    queues::choosers::{Choice, ChoiceRow, SpacedRepetition, Strategy, TimeUnit},
     types::{DateTime, Markdown, Pool},
 };
 
@@ -239,7 +236,7 @@ impl Queue {
         Ok(answers)
     }
 
-    pub async fn next_question(&self, db: &Pool) -> Result<NextQuestion, Error> {
+    pub async fn next_question(&self, unit: TimeUnit, db: &Pool) -> Result<NextQuestion, Error> {
         info!("Selecting next question");
 
         let choices = sqlx::query_as!(
@@ -268,10 +265,7 @@ impl Queue {
 
         info!("Choosing from choices: {:?}", choices);
         let (next_choice, next_available_at) =
-            choosers::SpacedRepetition::from_rows(choices, choosers::TimeUnit::Minutes)
-                .next_question()?;
-        // let (result, next_available_at) =
-        //     choosers::Random::from_rows(choices).next_question()?;
+            SpacedRepetition::from_rows(choices, unit).next_question()?;
 
         let next_question = match next_choice {
             Some(choice) => {

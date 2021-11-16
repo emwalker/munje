@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     mutations::AnswerQuestion,
     prelude::*,
-    queues::{NextQuestion, Queue, WideAnswer},
+    queues::{choosers, NextQuestion, Queue, WideAnswer},
     types::{CurrentPage, Message},
     users::User,
 };
@@ -74,8 +74,14 @@ async fn show(
     let messages = &Message::none();
     let db = request.db()?;
 
+    #[cfg(feature = "production")]
+    let unit = choosers::TimeUnit::Days;
+
+    #[cfg(not(feature = "production"))]
+    let unit = choosers::TimeUnit::Minutes;
+
     let queue = &Queue::find(&queue_id, db).await?;
-    let next_question = queue.next_question(db).await?;
+    let next_question = queue.next_question(unit, db).await?;
     let recent_answers = queue.recent_answers(db).await?;
 
     let s = Show {

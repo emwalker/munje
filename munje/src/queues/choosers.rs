@@ -12,6 +12,7 @@ pub enum State {
     Incorrect,
     Unknown,
     Unseen,
+    Unsure,
 }
 
 #[derive(Copy, Clone)]
@@ -49,14 +50,16 @@ pub trait Strategy {
     fn next_question(&self) -> Result<(Option<Choice>, DateTime), Error> {
         let total = &self.to_vec();
         let available = self.filter_choices(&total);
+
         info!(
             "Choosing from {} total and {} available choices",
             total.len(),
             available.len()
         );
+
         if available.len() > 0 {
-            let choice = available[0].clone();
-            Ok((Some(choice.clone()), self.available_at(&choice)))
+            let choice = &available[0];
+            Ok((Some(choice.clone()), self.available_at(choice)))
         } else if total.len() > 0 {
             debug!(
                 "No choices currently available, choosing first from total choices: {:?}",
@@ -140,9 +143,10 @@ impl State {
                 "unseen" => Self::Unseen,
                 "correct" => Self::Correct,
                 "incorrect" => Self::Incorrect,
+                "unsure" => Self::Unsure,
                 _ => Self::Unknown,
             },
-            None => Self::Unknown,
+            None => Self::Unseen,
         }
     }
 }
@@ -154,6 +158,7 @@ impl fmt::Display for State {
             Self::Correct => "correct",
             Self::Incorrect => "incorrect",
             Self::Unknown => "unknown",
+            Self::Unsure => "unsure",
         };
         write!(f, "{}", string)
     }
@@ -243,7 +248,7 @@ impl Random {
 }
 
 impl Strategy for Random {
-    // FIXME: Re-implement as a generator
+    // Re-implement as a generator?
     fn to_vec(&self) -> Vec<Choice> {
         let n = self.choices.len();
         debug!("Selecting choices from range 0 - {}", n - 1);
@@ -285,15 +290,7 @@ impl SpacedRepetition {
         }
     }
 
-    fn available_at(&self, choice: &Choice) -> DateTime {
-        let delta = match self.unit {
-            TimeUnit::Days => chrono::Duration::days(choice.stage.into()),
-            TimeUnit::Minutes => chrono::Duration::minutes(choice.stage.into()),
-        };
-        choice.answered_at.clone() + delta
-    }
-
-    fn available(&self, choice: &Choice) -> bool {
+    fn is_available(&self, choice: &Choice) -> bool {
         self.available_at(choice) <= self.clock.threshold()
     }
 }
@@ -306,24 +303,27 @@ impl Strategy for SpacedRepetition {
     fn to_vec(&self) -> Vec<Choice> {
         let mut choices = self.choices.clone();
         let threshold = self.clock.threshold();
-        choices.sort_by_key(|c| (c.question_id.clone(), Reverse(c.answered_at)));
-        choices.dedup_by_key(|c| c.question_id.clone());
+        choices.sort_by_key(|c| (c.question_id, Reverse(c.answered_at)));
+        choices.dedup_by_key(|c| c.question_id);
         choices.sort_by_key(|c| (c.consecutive_correct, Reverse(threshold - c.answered_at)));
         choices
     }
 
     fn filter_choices(&self, choices: &Vec<Choice>) -> Vec<Choice> {
-        choices
-            .iter()
-            .filter(|c| self.available(c))
-            .collect::<Vec<Choice>>()
+        choices.iter().filter(|c| self.is_available(c)).collect()
     }
 
     fn available_at(&self, choice: &Choice) -> DateTime {
-        let delta = match self.unit {
-            TimeUnit::Minutes => chrono::Duration::minutes(choice.stage.into()),
-            TimeUnit::Days => chrono::Duration::days(choice.stage.into()),
+        let ticks = match choice.state {
+            State::Unsure => 90,
+            _ => choice.stage.into(),
         };
+
+        let delta = match self.unit {
+            TimeUnit::Minutes => chrono::Duration::minutes(ticks),
+            TimeUnit::Days => chrono::Duration::days(ticks),
+        };
+
         choice.answered_at + delta
     }
 }
@@ -333,8 +333,13 @@ mod tests {
     use super::*;
 
     #[allow(non_snake_case)]
-    fn C(id: i64, consecutive_correct: i32, answered_at: DateTime, state: State) -> Choice {
-        Choice::new(id, answered_at, consecutive_correct, state)
+    fn C(
+        question_id: i64,
+        consecutive_correct: i32,
+        answered_at: DateTime,
+        state: State,
+    ) -> Choice {
+        Choice::new(question_id, answered_at, consecutive_correct, state)
     }
 
     #[test]
@@ -449,6 +454,15 @@ mod tests {
                     .to_choice(&clock),
                 ],
                 expected: (Some(0), clock.ticks(-1)),
+            },
+            TestCase {
+                name: "Questions that were too hard are not shown for 90 days",
+                choices: vec![
+                    C(0, 0, clock.ticks(0), State::Unsure),
+                    C(1, 0, clock.ticks(-1), State::Unsure),
+                    C(2, 0, clock.ticks(-2), State::Unsure),
+                ],
+                expected: (None, clock.ticks(88)),
             },
         ];
 

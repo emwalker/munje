@@ -251,7 +251,7 @@ impl Queue {
                 on  q.id = la.question_id
                 and la.user_id = $1
                 and la.queue_id = $2
-             limit 100"#,
+             limit 1000"#,
             self.user_id,
             self.id,
         )

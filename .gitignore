@@ -6,3 +6,4 @@ target
 memory:*
 *.code-workspace
 scratchpad*
+/data

@@ -13,3 +13,6 @@ start:
 
 proxy:
 	kubectl port-forward --namespace default svc/postgres-postgresql 5433:5432
+
+save-production:
+	./scripts/save-production-db

@@ -4,6 +4,7 @@ extern crate log;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{cookie::SameSite, middleware, web, App, HttpServer};
 use anyhow::Result;
+use time::Duration;
 use sqlx::postgres::PgPoolOptions;
 
 use munje::{
@@ -28,6 +29,7 @@ async fn main() -> Result<()> {
             .wrap(IdentityService::new(
                 CookieIdentityPolicy::new(config.session_key.as_bytes())
                     .name("auth-cookie")
+                    .max_age(Duration::days(356))
                     .same_site(SameSite::Strict)
                     .secure(true),
             ))

@@ -4,8 +4,8 @@ extern crate log;
 use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_web::{cookie::SameSite, middleware, web, App, HttpServer};
 use anyhow::Result;
-use time::Duration;
 use sqlx::postgres::PgPoolOptions;
+use time::Duration;
 
 use munje::{
     questions, queues, routes,

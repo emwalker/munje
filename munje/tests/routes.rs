@@ -11,11 +11,40 @@ use serde::Serialize;
 use crate::support::{Runner, TestResult};
 
 #[actix_rt::test]
-async fn home() -> TestResult {
+async fn home_unauthenticated() -> TestResult {
     let res = Runner::build().to_runner().await.get("/").await;
 
     assert_eq!(http::StatusCode::OK, res.status);
     assert_eq!("Munje", res.doc.select_text("p.title").unwrap());
+    assert_eq!(
+        "Overview",
+        res.doc.select_text(".navbar-item.overview").unwrap()
+    );
+    assert_eq!(
+        "Questions",
+        res.doc.select_text(".navbar-item.questions").unwrap()
+    );
+    Ok(())
+}
+
+#[actix_rt::test]
+async fn home_authenticated() -> TestResult {
+    let res = Runner::build().auth().to_runner().await.get("/").await;
+
+    assert_eq!(http::StatusCode::OK, res.status);
+    assert_eq!("Munje", res.doc.select_text("p.title").unwrap());
+    assert_eq!(
+        "Overview",
+        res.doc.select_text(".navbar-item.overview").unwrap()
+    );
+    assert_eq!(
+        "Queues",
+        res.doc.select_text(".navbar-item.queues").unwrap()
+    );
+    assert_eq!(
+        "Questions",
+        res.doc.select_text(".navbar-item.questions").unwrap()
+    );
     Ok(())
 }
 

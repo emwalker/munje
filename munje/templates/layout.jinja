@@ -45,14 +45,18 @@
       {% if page.at("/") %}
         <div class="navbar-start">
           <div class="navbar-item has-dropdown is-hoverable">
-            <a class="navbar-link">
-              More
-            </a>
+            <a class="navbar-link">More</a>
 
             <div class="navbar-dropdown">
-              <a class="navbar-item" href="/questions">
-                Questions
-              </a>
+              <a class='navbar-item overview {{page.active("/overview")}}'
+                href="/overview">Overview</a>
+
+              {% if page.is_authenticated() %}
+                <a class='navbar-item queues {{page.active("/queues")}}'
+                  href="/{{ page.handle() }}/queues">Queues</a>
+              {% endif %}
+
+              <a class="navbar-item questions" href="/questions">Questions</a>
             </div>
           </div>
         </div>

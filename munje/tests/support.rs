@@ -1,7 +1,11 @@
 #![allow(dead_code)]
 
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
-use actix_web::{dev::ServiceResponse, http, test, web, App, HttpRequest};
+use actix_web::{
+    body::{BoxBody, EitherBody},
+    dev::ServiceResponse,
+    http, test, web, App, HttpRequest,
+};
 use munje::{
     error::Error,
     prelude::*,
@@ -154,7 +158,10 @@ impl Runner {
         Ok(())
     }
 
-    async fn call_service(&self, mut req: test::TestRequest) -> ServiceResponse {
+    async fn call_service(
+        &self,
+        mut req: test::TestRequest,
+    ) -> ServiceResponse<EitherBody<BoxBody>> {
         let policy = CookieIdentityPolicy::new(self.config.session_key.as_bytes())
             .name("auth-cookie")
             .secure(true);

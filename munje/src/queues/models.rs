@@ -141,13 +141,13 @@ impl QueueRow {
     pub fn to_queue(&self) -> Queue {
         Queue {
             created_at: DateTime(self.created_at),
-            description: self.description.clone().map(|s| Markdown::from(s)),
+            description: self.description.clone().map(Markdown::from),
             external_id: self.external_id.to_string(),
-            id: self.id.clone(),
-            starting_question_id: self.starting_question_id.clone(),
+            id: self.id,
+            starting_question_id: self.starting_question_id,
             title: self.title.clone(),
             updated_at: DateTime(self.updated_at),
-            user_id: self.user_id.clone(),
+            user_id: self.user_id,
         }
     }
 }
@@ -258,7 +258,7 @@ impl Queue {
         .fetch_all(db)
         .await?;
 
-        if choices.len() < 1 {
+        if choices.len() == 0 {
             let error = Error::Generic(format!("No choices found for queue {:?}", self));
             return Err(error);
         }

@@ -64,7 +64,7 @@ impl UserRow {
             id: self.id,
             is_admin: false,
             is_anonymous: false,
-            last_login: self.last_login.map(|dt| DateTime(dt)),
+            last_login: self.last_login.map(DateTime),
             updated_at: DateTime(self.updated_at),
         }
     }

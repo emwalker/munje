@@ -187,7 +187,9 @@ impl fmt::Debug for ChoiceRow {
             "ChoiceRow {{ question_id: {}, answer_consecutive_correct: {}, answer_state: {} }}",
             self.question_id,
             self.answer_consecutive_correct.unwrap_or(0),
-            self.answer_state.clone().unwrap_or("unknown".to_string()),
+            self.answer_state
+                .clone()
+                .unwrap_or_else(|| "unknown".to_string()),
         )
     }
 }
@@ -216,11 +218,11 @@ impl Choice {
 
     fn clone(&self) -> Self {
         Self {
-            answered_at: self.answered_at.clone(),
+            answered_at: self.answered_at,
             consecutive_correct: self.consecutive_correct,
-            question_id: self.question_id.clone(),
+            question_id: self.question_id,
             stage: self.stage,
-            state: self.state.clone(),
+            state: self.state,
         }
     }
 }
@@ -307,7 +309,7 @@ impl Strategy for SpacedRepetition {
         choices.dedup_by_key(|c| c.question_id);
         choices.sort_by_key(|c| {
             (
-                Reverse(threshold - self.available_at(&c)),
+                Reverse(threshold - self.available_at(c)),
                 Reverse(c.consecutive_correct),
             )
         });

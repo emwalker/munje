@@ -82,9 +82,10 @@ pub struct DateTime(pub chrono::DateTime<chrono::Utc>);
 
 impl DateTime {
     pub fn from(string: &str) -> Self {
-        let dt = chrono::DateTime::parse_from_rfc3339(string)
-            .map(|dt| chrono::DateTime::from(dt))
-            .unwrap_or(chrono::Utc::now());
+        let dt = match chrono::DateTime::parse_from_rfc3339(string) {
+            Ok(parsed) => parsed.with_timezone(&chrono::Utc),
+            _ => chrono::Utc::now(),
+        };
         Self(dt)
     }
 
@@ -93,7 +94,7 @@ impl DateTime {
     }
 
     pub fn to_chrono(&self) -> chrono::DateTime<chrono::Utc> {
-        self.0.clone()
+        self.0
     }
 
     pub fn humanize(&self) -> String {

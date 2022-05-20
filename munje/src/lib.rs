@@ -11,7 +11,7 @@ mod page;
 pub mod prelude;
 pub mod questions;
 pub mod queues;
-mod request;
+mod requests;
 pub mod routes;
 pub mod types;
 pub mod users;

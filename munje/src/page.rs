@@ -18,7 +18,7 @@ impl Page {
         match Url::parse(&link) {
             Ok(parsed_link) => Ok(Self {
                 link: parsed_link,
-                html: html,
+                html,
             }),
             Err(err) => Err(anyhow!("There was a problem: {}", err)),
         }

@@ -131,14 +131,14 @@ impl AuthenticateUser {
 
         let mut valid = vec![self.handle.validate(), self.password.validate()];
 
-        if self.handle.value.len() < 1 {
+        if self.handle.value.is_empty() {
             self.handle
                 .errors
                 .push("Username cannot be empty".to_string());
             valid.push(false);
         }
 
-        if self.password.value.len() < 1 {
+        if self.password.value.is_empty() {
             self.password
                 .errors
                 .push("Password cannot be empty".to_string());

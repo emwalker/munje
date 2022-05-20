@@ -19,7 +19,7 @@ impl PasswordField {
 
 impl Validate for PasswordField {
     fn validate(&mut self) -> bool {
-        if self.value == "" {
+        if self.value.is_empty() {
             self.errors.push("Password cannot be empty".to_string());
             return false;
         }
@@ -34,7 +34,7 @@ impl Validate for PasswordField {
     }
 
     fn is_valid(&self) -> bool {
-        self.errors.len() == 0
+        self.errors.is_empty()
     }
 
     fn messages(&self) -> Vec<Message> {

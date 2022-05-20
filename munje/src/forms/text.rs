@@ -32,7 +32,7 @@ impl Validate for TextField {
     }
 
     fn is_valid(&self) -> bool {
-        self.errors.len() == 0
+        self.errors.is_empty()
     }
 
     fn messages(&self) -> Vec<Message> {

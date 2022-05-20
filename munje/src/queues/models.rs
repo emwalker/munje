@@ -258,7 +258,7 @@ impl Queue {
         .fetch_all(db)
         .await?;
 
-        if choices.len() == 0 {
+        if choices.is_empty() {
             let error = Error::Generic(format!("No choices found for queue {:?}", self));
             return Err(error);
         }

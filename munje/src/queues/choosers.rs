@@ -43,13 +43,13 @@ pub struct Choice {
 pub trait Strategy {
     fn to_vec(&self) -> Vec<Choice>;
 
-    fn filter_choices(&self, choices: &Vec<Choice>) -> Vec<Choice>;
+    fn filter_choices(&self, choices: &[Choice]) -> Vec<Choice>;
 
     fn available_at(&self, choice: &Choice) -> DateTime;
 
     fn next_question(&self) -> Result<(Option<Choice>, DateTime), Error> {
         let total = &self.to_vec();
-        let available = self.filter_choices(&total);
+        let available = self.filter_choices(total);
 
         info!(
             "Choosing from {} total and {} available choices",
@@ -57,10 +57,10 @@ pub trait Strategy {
             available.len()
         );
 
-        if available.len() > 0 {
+        if !available.is_empty() {
             let choice = &available[0];
             Ok((Some(choice.clone()), self.available_at(choice)))
-        } else if total.len() > 0 {
+        } else if !total.is_empty() {
             debug!(
                 "No choices currently available, choosing first from total choices: {:?}",
                 total
@@ -269,8 +269,8 @@ impl Strategy for Random {
         DateTime::now()
     }
 
-    fn filter_choices(&self, choices: &Vec<Choice>) -> Vec<Choice> {
-        choices.clone()
+    fn filter_choices(&self, choices: &[Choice]) -> Vec<Choice> {
+        choices.to_vec()
     }
 }
 
@@ -316,7 +316,7 @@ impl Strategy for SpacedRepetition {
         choices
     }
 
-    fn filter_choices(&self, choices: &Vec<Choice>) -> Vec<Choice> {
+    fn filter_choices(&self, choices: &[Choice]) -> Vec<Choice> {
         choices.iter().filter(|c| self.is_available(c)).collect()
     }
 

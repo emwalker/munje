@@ -30,7 +30,7 @@ scraper = "0"
 serde = "1"
 serde_derive = "1"
 serde_json = "1"
-sqlx = { version = "0.5", features = [ "sqlite", "migrate", "runtime-actix-native-tls", "offline", "postgres", "time", "chrono" ] }
+sqlx = { version = "0.6", features = [ "sqlite", "migrate", "runtime-actix-native-tls", "offline", "postgres", "time", "chrono" ] }
 time = "0.3"
 totems = "0"
 url = "2"

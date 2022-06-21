@@ -1,4 +1,4 @@
-FROM rust:1.56.0-buster as builder
+FROM rust:1.61.0-buster as builder
 WORKDIR /usr/src/munje
 COPY . .
 RUN cargo build --release --features munje/production

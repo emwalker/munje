@@ -68,7 +68,7 @@ dependencies = [
  "futures-util",
  "serde",
  "serde_json",
- "time 0.3.11",
+ "time 0.3.13",
 ]
 
 [[package]]
@@ -181,7 +181,7 @@ dependencies = [
  "serde_urlencoded",
  "smallvec",
  "socket2",
- "time 0.3.11",
+ "time 0.3.13",
  "url",
 ]
 
@@ -625,7 +625,7 @@ dependencies = [
  "rand 0.8.5",
  "sha2",
  "subtle",
- "time 0.3.11",
+ "time 0.3.13",
  "version_check",
 ]
 
@@ -1620,7 +1620,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sqlx",
- "time 0.3.11",
+ "time 0.3.13",
  "totems",
  "url",
  "uuid",
@@ -2594,7 +2594,7 @@ dependencies = [
  "sqlx-rt",
  "stringprep",
  "thiserror",
- "time 0.3.11",
+ "time 0.3.13",
  "tokio-stream",
  "url",
  "whoami",
@@ -2814,9 +2814,9 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.3.11"
+version = "0.3.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72c91f41dcb2f096c05f0873d667dceec1087ce5bcf984ec8ffb19acddbb3217"
+checksum = "db76ff9fa4b1458b3c7f077f3ff9887394058460d21e634355b273aaf11eea45"
 dependencies = [
  "itoa 1.0.1",
  "libc",

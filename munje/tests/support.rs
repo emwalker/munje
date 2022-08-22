@@ -131,10 +131,9 @@ impl RunnerBuilder {
             .connect(database_url)
             .await
             .expect("Failed to fetch database pool");
-        sqlx::migrate!("./migrations")
+        let _ = sqlx::migrate!("./migrations")
             .run(&db)
-            .await
-            .expect("Failed to run migrations");
+            .await;
 
         db
     }

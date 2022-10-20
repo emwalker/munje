@@ -748,9 +748,9 @@ dependencies = [
 
 [[package]]
 name = "ctor"
-version = "0.1.25"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f18cc96d6348bef065d84fb23d548790531b03e01a35a82c4998d174956b4b9"
+checksum = "6d2301688392eb071b0bf1a37be05c469d3cc4dbbd95df672fe28ab021e6a096"
 dependencies = [
  "quote 1.0.21",
  "syn 1.0.102",
